@@ -1,0 +1,49 @@
+name: Update Posts
+
+on:
+  schedule:
+    - cron: '0 */3 * * *'
+  workflow_dispatch:
+    inputs:
+      pages:
+        description: 'Страниц (5=~100 постов, 50=~1000)'
+        required: false
+        default: '5'
+      fresh:
+        description: 'Начать с нуля?'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: pip install requests beautifulsoup4
+
+      - name: Run scraper
+        run: |
+          PAGES="${{ github.event.inputs.pages || '5' }}"
+          FRESH="${{ github.event.inputs.fresh }}"
+          CMD="python scripts/scrape_channel.py --pages $PAGES"
+          if [ "$FRESH" = "true" ]; then CMD="$CMD --fresh"; fi
+          echo "Running: $CMD"
+          $CMD
+
+      - name: Commit & push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/posts.json data/channel.json
+          git diff --cached --quiet || git commit -m "🤖 Обновлено $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git push
