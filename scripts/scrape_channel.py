@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-scrape_channel.py — v8
+scrape_channel.py — v9
 Исправлено:
-- Групповые посты (альбомы): собираются в один пост, а не в несколько пустых
-- Посты без даты пропускаются
-- Merge обновляет дату и текст если раньше были пустые
-- Валидация даты перед сохранением
+- Обрезанный текст: если Telegram обрезал пост в ленте,
+  делаем отдельный запрос на t.me/channel/ID?embed=1 для полного текста
+- Групповые посты (альбомы): собираются в один пост
+- Посты без валидной даты отбрасываются
+- Merge чистит битые записи
 """
 
 import argparse
@@ -22,6 +23,7 @@ OUTPUT_POSTS   = Path(__file__).resolve().parent.parent / "data" / "posts.json"
 OUTPUT_CHANNEL = Path(__file__).resolve().parent.parent / "data" / "channel.json"
 DEFAULT_PAGES  = 5
 DELAY          = 1.5
+DELAY_EMBED    = 0.8   # пауза между запросами полных постов
 
 HEADERS = {
     "User-Agent": (
@@ -69,13 +71,21 @@ def fetch_channel_meta(channel: str) -> dict:
 
 
 # ============================================================
-# УТИЛИТЫ ПАРСИНГА
+# УТИЛИТЫ
 # ============================================================
 
 def fetch_page(channel: str, before=None) -> str:
     url = f"https://t.me/s/{channel}"
     params = {"before": before} if before else {}
     r = requests.get(url, params=params, headers=HEADERS, timeout=30)
+    r.raise_for_status()
+    return r.text
+
+
+def fetch_single_post(channel: str, post_id: int) -> str:
+    """Загружает отдельный пост (embed) — содержит ПОЛНЫЙ текст без обрезки."""
+    url = f"https://t.me/{channel}/{post_id}?embed=1&mode=tme"
+    r = requests.get(url, headers=HEADERS, timeout=30)
     r.raise_for_status()
     return r.text
 
@@ -138,47 +148,28 @@ def extract_bg_url(style: str):
 
 
 def is_valid_date(date_str: str) -> bool:
-    """Проверяет, что строка — валидная ISO-дата (содержит хотя бы YYYY-MM-DD)."""
     if not date_str or len(date_str) < 10:
         return False
-    # Простая проверка формата: начинается с YYYY-MM-DD
     return bool(re.match(r"^\d{4}-\d{2}-\d{2}", date_str))
+
+
+def is_text_truncated(text_plain: str) -> bool:
+    """Определяет, обрезал ли Telegram текст в превью ленты."""
+    if not text_plain:
+        return False
+    # Telegram обрезает длинные тексты и добавляет "..."
+    stripped = text_plain.rstrip()
+    if stripped.endswith("...") or stripped.endswith("…"):
+        return True
+    return False
 
 
 # ============================================================
 # ПАРСИНГ ОДНОГО СООБЩЕНИЯ
 # ============================================================
 
-def parse_single_message(msg, channel: str) -> dict | None:
-    """Парсит один .tgme_widget_message. Возвращает dict или None если невалидно."""
-    dp = msg.get("data-post", "")
-    if "/" not in dp:
-        return None
-    pid = int(dp.split("/")[-1])
-    post_url = f"https://t.me/{channel}/{pid}"
-
-    # Текст
-    text_el = msg.select_one(".tgme_widget_message_text")
-    hc, pt = "", ""
-    if text_el:
-        hc = sanitize_html(text_el)
-        pt = html_to_plain(hc)
-
-    # Дата — ищем ТОЛЬКО внутри footer этого конкретного сообщения
-    date_str = ""
-    footer = msg.select_one(".tgme_widget_message_footer")
-    if footer:
-        date_el = footer.select_one("time[datetime]")
-        if date_el:
-            date_str = date_el.get("datetime", "")
-
-    # Просмотры / форварды
-    views_el = msg.select_one(".tgme_widget_message_views")
-    views = parse_views(views_el.text) if views_el else None
-    fwd_el = msg.select_one(".tgme_widget_message_forwards")
-    forwards = parse_views(fwd_el.text) if fwd_el else None
-
-    # Медиа
+def extract_media(msg, post_url: str, channel: str) -> list[dict]:
+    """Извлекает все медиа из одного .tgme_widget_message."""
     media = []
 
     for pw in msg.select(".tgme_widget_message_photo_wrap"):
@@ -236,35 +227,110 @@ def parse_single_message(msg, channel: str) -> dict | None:
             if u:
                 media.append({"type": "photo", "url": u})
 
+    return media
+
+
+def parse_single_message(msg, channel: str) -> dict | None:
+    """Парсит один .tgme_widget_message. Возвращает dict или None."""
+    dp = msg.get("data-post", "")
+    if "/" not in dp:
+        return None
+    pid = int(dp.split("/")[-1])
+    post_url = f"https://t.me/{channel}/{pid}"
+
+    text_el = msg.select_one(".tgme_widget_message_text")
+    hc, pt = "", ""
+    if text_el:
+        hc = sanitize_html(text_el)
+        pt = html_to_plain(hc)
+
+    # Дата — СТРОГО из footer этого сообщения
+    date_str = ""
+    footer = msg.select_one(".tgme_widget_message_footer")
+    if footer:
+        date_el = footer.select_one("time[datetime]")
+        if date_el:
+            date_str = date_el.get("datetime", "")
+
+    views_el = msg.select_one(".tgme_widget_message_views")
+    views = parse_views(views_el.text) if views_el else None
+    fwd_el = msg.select_one(".tgme_widget_message_forwards")
+    forwards = parse_views(fwd_el.text) if fwd_el else None
+
+    media = extract_media(msg, post_url, channel)
+
     return {
-        "id": pid,
-        "date": date_str,
-        "text": pt,
-        "html": hc,
-        "media": media,
-        "views": views,
-        "forwards": forwards,
-        "url": post_url,
+        "id": pid, "date": date_str, "text": pt, "html": hc,
+        "media": media, "views": views, "forwards": forwards,
+        "url": post_url, "_truncated": is_text_truncated(pt),
     }
 
 
 # ============================================================
-# ПАРСИНГ СТРАНИЦЫ (с обработкой групп/альбомов)
+# ДОЗАГРУЗКА ПОЛНОГО ТЕКСТА
+# ============================================================
+
+def enrich_truncated_post(post: dict, channel: str) -> dict:
+    """
+    Для поста с обрезанным текстом — загружает полную версию
+    через embed-страницу и обновляет текст, дату и медиа.
+    """
+    pid = post["id"]
+    try:
+        html = fetch_single_post(channel, pid)
+        soup = BeautifulSoup(html, "html.parser")
+        msg = soup.select_one(".tgme_widget_message_wrap .tgme_widget_message")
+        if not msg:
+            # Пробуем другой селектор
+            msg = soup.select_one(".tgme_widget_message")
+        if not msg:
+            return post
+
+        # Полный текст
+        text_el = msg.select_one(".tgme_widget_message_text")
+        if text_el:
+            new_html = sanitize_html(text_el)
+            new_plain = html_to_plain(new_html)
+            # Обновляем только если новый текст длиннее
+            if len(new_plain) > len(post.get("text", "")):
+                post["html"] = new_html
+                post["text"] = new_plain
+                post["_truncated"] = False
+
+        # Дата из embed (более надёжная — это точная дата поста)
+        date_el = msg.select_one("time[datetime]")
+        if date_el:
+            embed_date = date_el.get("datetime", "")
+            if is_valid_date(embed_date):
+                post["date"] = embed_date
+
+        # Медиа из embed (может быть полнее)
+        post_url = post["url"]
+        embed_media = extract_media(msg, post_url, channel)
+        if embed_media and (not post.get("media") or len(embed_media) > len(post["media"])):
+            post["media"] = embed_media
+
+    except Exception as e:
+        print(f"      ⚠️ Не удалось дозагрузить пост {pid}: {e}")
+
+    return post
+
+
+# ============================================================
+# ПАРСИНГ СТРАНИЦЫ
 # ============================================================
 
 def parse_posts(html: str, channel: str) -> list[dict]:
     soup = BeautifulSoup(html, "html.parser")
     posts = []
 
-    # Собираем id постов, которые являются частью группы (альбома)
+    # 1) Обрабатываем групповые посты (альбомы)
     grouped_ids = set()
     for group_wrap in soup.select(".tgme_widget_message_grouped_wrap"):
-        # Внутри группы — несколько .tgme_widget_message
         group_msgs = group_wrap.select(".tgme_widget_message")
         if len(group_msgs) < 2:
             continue
 
-        # Собираем все медиа из группы
         all_media = []
         group_text_html = ""
         group_text_plain = ""
@@ -272,74 +338,56 @@ def parse_posts(html: str, channel: str) -> list[dict]:
         group_views = None
         group_forwards = None
         group_id = None
+        group_truncated = False
 
         for gm in group_msgs:
             parsed = parse_single_message(gm, channel)
             if not parsed:
                 continue
-
             grouped_ids.add(parsed["id"])
-
-            # Медиа — собираем от всех сообщений в группе
             all_media.extend(parsed["media"])
 
-            # Текст, дата, views — берём от последнего в группе
-            # (Telegram ставит текст и footer только на последнем)
             if parsed["date"]:
                 group_date = parsed["date"]
             if parsed["html"]:
                 group_text_html = parsed["html"]
                 group_text_plain = parsed["text"]
+                group_truncated = parsed.get("_truncated", False)
             if parsed["views"] is not None:
                 group_views = parsed["views"]
             if parsed["forwards"] is not None:
                 group_forwards = parsed["forwards"]
-
-            # id берём максимальный (последний пост в группе)
             if group_id is None or parsed["id"] > group_id:
                 group_id = parsed["id"]
 
         if group_id is None:
             continue
-
-        # Валидация даты
         if not is_valid_date(group_date):
-            print(f"   ⚠️ Группа {group_id}: нет валидной даты, пропускаю")
             continue
 
         posts.append({
-            "id": group_id,
-            "date": group_date,
-            "text": group_text_plain,
-            "html": group_text_html,
-            "media": all_media,
-            "views": group_views,
-            "forwards": group_forwards,
+            "id": group_id, "date": group_date,
+            "text": group_text_plain, "html": group_text_html,
+            "media": all_media, "views": group_views, "forwards": group_forwards,
             "url": f"https://t.me/{channel}/{group_id}",
+            "_truncated": group_truncated,
         })
 
-    # Обрабатываем обычные (не групповые) посты
+    # 2) Обычные посты (не в группах)
     for msg in soup.select(".tgme_widget_message"):
         try:
             dp = msg.get("data-post", "")
             if "/" not in dp:
                 continue
             pid = int(dp.split("/")[-1])
-
-            # Пропускаем посты, которые уже обработали как часть группы
             if pid in grouped_ids:
                 continue
 
             parsed = parse_single_message(msg, channel)
             if not parsed:
                 continue
-
-            # ★ ГЛАВНОЕ ИСПРАВЛЕНИЕ: пропускаем посты без валидной даты
             if not is_valid_date(parsed["date"]):
-                print(f"   ⚠️ Пост {pid}: нет валидной даты, пропускаю")
                 continue
-
-            # Пропускаем сервисные сообщения (пустой текст + пустые медиа)
             if not parsed["text"] and not parsed["html"] and not parsed["media"]:
                 continue
 
@@ -358,8 +406,9 @@ def parse_posts(html: str, channel: str) -> list[dict]:
 
 def scrape(channel, max_pages):
     all_posts, seen, before = [], set(), None
+
     for page in range(max_pages):
-        print(f"📥 {page + 1}/{max_pages}...")
+        print(f"📥 Страница {page + 1}/{max_pages}...")
         try:
             html = fetch_page(channel, before)
         except requests.exceptions.HTTPError as e:
@@ -392,12 +441,25 @@ def scrape(channel, max_pages):
         if page < max_pages - 1:
             time.sleep(DELAY)
 
+    # ★ Дозагрузка полного текста для обрезанных постов
+    truncated = [p for p in all_posts if p.get("_truncated")]
+    if truncated:
+        print(f"\n📝 Дозагрузка полного текста для {len(truncated)} постов...")
+        for i, post in enumerate(truncated):
+            print(f"   {i + 1}/{len(truncated)}: пост {post['id']}...")
+            enrich_truncated_post(post, channel)
+            time.sleep(DELAY_EMBED)
+
+    # Удаляем служебный флаг
+    for p in all_posts:
+        p.pop("_truncated", None)
+
     all_posts.sort(key=lambda p: p["id"], reverse=True)
     return all_posts
 
 
 # ============================================================
-# MERGE (исправлен: обновляет дату и текст)
+# MERGE
 # ============================================================
 
 def merge(new_posts, path):
@@ -419,46 +481,36 @@ def merge(new_posts, path):
         else:
             o = mm[p["id"]]
 
-            # Обновляем дату если старая была пустая/невалидная
+            # ★ Обновляем дату если у нового она валидная, а у старого — нет
             if is_valid_date(p.get("date", "")) and not is_valid_date(o.get("date", "")):
                 o["date"] = p["date"]
                 fixed += 1
 
-            # Обновляем текст если старый был пустой
-            if p.get("text") and not o.get("text"):
+            # ★ Обновляем текст если новый ДЛИННЕЕ (= полнее)
+            if p.get("text") and len(p["text"]) > len(o.get("text", "")):
                 o["text"] = p["text"]
-            if p.get("html") and not o.get("html"):
-                o["html"] = p["html"]
+                o["html"] = p.get("html", "")
 
-            # Обновляем динамические поля
-            if p.get("views"):
-                o["views"] = p["views"]
-            if p.get("forwards"):
-                o["forwards"] = p["forwards"]
+            # Динамические поля
+            if p.get("views"):    o["views"] = p["views"]
+            if p.get("forwards"): o["forwards"] = p["forwards"]
 
-            # Обновляем media если были пустые
-            if p.get("media") and not o.get("media"):
-                o["media"] = p["media"]
-
-            # Обновляем post_url у видео и url у документов
+            # Медиа если были пустые или новые полнее
             if p.get("media"):
-                for nm in p["media"]:
-                    if nm.get("type") == "video" and nm.get("post_url"):
-                        for om in (o.get("media") or []):
-                            if om.get("type") == "video" and not om.get("post_url"):
-                                om["post_url"] = nm["post_url"]
-                    if nm.get("type") == "document" and nm.get("url") and nm["url"] != "#":
-                        for om in (o.get("media") or []):
-                            if om.get("type") == "document" and (not om.get("url") or om["url"] == "#"):
-                                om["url"] = nm["url"]
+                if not o.get("media") or len(p["media"]) > len(o.get("media", [])):
+                    o["media"] = p["media"]
 
-    # ★ Удаляем посты с невалидной датой из итогового файла
+    # Удаляем посты с невалидной датой
     before_count = len(mm)
     mm = {pid: p for pid, p in mm.items() if is_valid_date(p.get("date", ""))}
     removed = before_count - len(mm)
 
+    # Удаляем служебные поля
+    for p in mm.values():
+        p.pop("_truncated", None)
+
     merged = sorted(mm.values(), key=lambda p: p["id"], reverse=True)
-    print(f"✅ Новых: {added} | Починено дат: {fixed} | Удалено без дат: {removed} | Всего: {len(merged)}")
+    print(f"✅ Новых: {added} | Починено дат: {fixed} | Удалено битых: {removed} | Всего: {len(merged)}")
     return merged
 
 
