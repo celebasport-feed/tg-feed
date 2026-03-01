@@ -87,6 +87,7 @@
     else if (query) status = `Найдено: ${filtered.length}`;
     else if (selectedDate) status = `Постов за ${fmtDateRu(selectedDate)}: ${filtered.length}`;
     dom.searchStatus.textContent = status;
+   dom.searchStatus.style.display = status ? '' : 'none';
     if(dom.scrollLoader) dom.scrollLoader.style.display=shown<filtered.length?'':'none';
   }
 
