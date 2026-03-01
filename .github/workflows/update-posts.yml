@@ -10,7 +10,12 @@ on:
         required: false
         default: '5'
       fresh:
-        description: 'Начать с нуля?'
+        description: 'Начать с нуля (удалить posts.json)?'
+        required: false
+        type: boolean
+        default: false
+      repair:
+        description: 'Починить битые посты (обрезанный текст, неправильные даты)?'
         required: false
         type: boolean
         default: false
@@ -35,10 +40,17 @@ jobs:
         run: |
           PAGES="${{ github.event.inputs.pages || '5' }}"
           FRESH="${{ github.event.inputs.fresh }}"
-          CMD="python scripts/scrape_channel.py --pages $PAGES"
-          if [ "$FRESH" = "true" ]; then CMD="$CMD --fresh"; fi
-          echo "Running: $CMD"
-          $CMD
+          REPAIR="${{ github.event.inputs.repair }}"
+
+          if [ "$REPAIR" = "true" ]; then
+            echo "🔧 Режим REPAIR — починка битых постов"
+            python scripts/scrape_channel.py --repair
+          else
+            CMD="python scripts/scrape_channel.py --pages $PAGES"
+            if [ "$FRESH" = "true" ]; then CMD="$CMD --fresh"; fi
+            echo "Running: $CMD"
+            $CMD
+          fi
 
       - name: Commit & push
         run: |
