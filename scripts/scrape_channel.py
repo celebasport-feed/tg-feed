@@ -165,19 +165,48 @@ def is_truncated(text: str) -> bool:
     return s.endswith("...") or s.endswith("…")
 
 
-# ============================================================
-# ИЗВЛЕЧЕНИЕ МЕДИА
-# ============================================================
+def is_inside_reply(el) -> bool:
+    """Проверяет, находится ли элемент внутри блока цитаты (reply)."""
+    for parent in el.parents:
+        if parent.get("class") and "tgme_widget_message_reply" in parent.get("class", []):
+            return True
+    return False
+
+
+def strip_reply(msg):
+    """
+    Создаёт копию msg БЕЗ reply-блоков.
+    Reply-блок (.tgme_widget_message_reply) содержит текст и медиа
+    цитируемого поста — их нельзя путать с содержимым самого поста.
+    """
+    clone = BeautifulSoup(str(msg), "html.parser").select_one(".tgme_widget_message") or BeautifulSoup(str(msg), "html.parser")
+    for reply_block in clone.select(".tgme_widget_message_reply"):
+        reply_block.decompose()
+    return clone
+
+
+def get_post_text(msg):
+    """
+    Извлекает текст САМОГО поста, игнорируя текст из reply-цитаты.
+    Ищет .tgme_widget_message_text, который НЕ внутри .tgme_widget_message_reply.
+    """
+    for text_el in msg.select(".tgme_widget_message_text"):
+        if not is_inside_reply(text_el):
+            return text_el
+    return None
 
 def extract_media(msg, post_url: str, channel: str) -> list[dict]:
+    """Извлекает медиа, ИСКЛЮЧАЯ содержимое reply-блока."""
+    # Работаем с копией без reply-блоков
+    clean = strip_reply(msg)
     media = []
 
-    for pw in msg.select(".tgme_widget_message_photo_wrap"):
+    for pw in clean.select(".tgme_widget_message_photo_wrap"):
         u = extract_bg_url(pw.get("style", ""))
         if u:
             media.append({"type": "photo", "url": u})
 
-    for vw in msg.select(".tgme_widget_message_video_wrap"):
+    for vw in clean.select(".tgme_widget_message_video_wrap"):
         thumb = ""
         th = vw.select_one(".tgme_widget_message_video_thumb")
         if th:
@@ -195,7 +224,7 @@ def extract_media(msg, post_url: str, channel: str) -> list[dict]:
                 pass
         media.append({"type": "video", "thumbnail": thumb, "duration": duration, "post_url": post_url})
 
-    for dw in msg.select(".tgme_widget_message_document_wrap"):
+    for dw in clean.select(".tgme_widget_message_document_wrap"):
         te = dw.select_one(".tgme_widget_message_document_title")
         ee = dw.select_one(".tgme_widget_message_document_extra")
         fn = te.text.strip() if te else "Файл"
@@ -211,18 +240,18 @@ def extract_media(msg, post_url: str, channel: str) -> list[dict]:
                 elif u in ("GB", "ГБ"): sb = int(v * 1073741824)
         media.append({"type": "document", "url": post_url, "filename": fn, "size": sb})
 
-    for rw in msg.select(".tgme_widget_message_roundvideo"):
+    for rw in clean.select(".tgme_widget_message_roundvideo"):
         t2 = extract_bg_url(rw.get("style", "")) or ""
         media.append({"type": "video", "thumbnail": t2, "duration": None, "post_url": post_url})
 
-    for si in msg.select(".tgme_widget_message_sticker_wrap img"):
+    for si in clean.select(".tgme_widget_message_sticker_wrap img"):
         src = si.get("data-src") or si.get("src", "")
         if src:
             if src.startswith("//"): src = "https:" + src
             media.append({"type": "photo", "url": src})
 
     if not media:
-        for lp in msg.select(".link_preview_image"):
+        for lp in clean.select(".link_preview_image"):
             u = extract_bg_url(lp.get("style", ""))
             if u:
                 media.append({"type": "photo", "url": u})
@@ -256,8 +285,8 @@ def fetch_post_via_embed(channel: str, post_id: int) -> dict | None:
 
     post_url = f"https://t.me/{channel}/{post_id}"
 
-    # Текст
-    text_el = msg.select_one(".tgme_widget_message_text")
+    # Текст — ИСКЛЮЧАЕМ текст из reply-цитаты
+    text_el = get_post_text(msg)
     hc, pt = "", ""
     if text_el:
         hc = sanitize_html(text_el)
@@ -472,7 +501,8 @@ def parse_single_message(msg, channel: str) -> dict | None:
     pid = int(dp.split("/")[-1])
     post_url = f"https://t.me/{channel}/{pid}"
 
-    text_el = msg.select_one(".tgme_widget_message_text")
+    # Текст — ИСКЛЮЧАЕМ текст из reply-цитаты
+    text_el = get_post_text(msg)
     hc, pt = "", ""
     if text_el:
         hc = sanitize_html(text_el)
