@@ -23,7 +23,7 @@
         <div class="header-channel">
           <img id="channelAvatar" class="channel-avatar" src="logo-celeba.png" alt="" onerror="this.style.display='none'">
           <div class="channel-meta">
-            <h1 class="channel-name">Спортивный маркетолог 🏟️</h1>
+            <h1 class="channel-name">Спортивный маркетолог</h1>
             <span class="channel-handle">@celebasport · <span id="subscriberCount">…</span></span>
           </div>
         </div>
@@ -35,12 +35,38 @@
       <p class="channel-desc">Крупнейший канал про маркетинг в спорте. Победитель премий «Спортс» и Marspo. Авторы: основатель <a href="https://celeba-sport.ru" target="_blank">celeba-sport.ru</a> + топы индустрии.</p>
     </header>
 
-    <div class="search-bar">
-      <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="search" id="searchInput" class="search-field" placeholder="Поиск по постам…" autocomplete="off">
-      <button id="searchClear" class="search-clear" style="display:none" aria-label="Очистить">✕</button>
+    <!-- ПОИСК + КАЛЕНДАРЬ -->
+    <div class="search-wrap">
+      <div class="search-bar">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" id="searchInput" class="search-field" placeholder="Поиск по постам…" autocomplete="off">
+        <button id="searchClear" class="search-clear" style="display:none" aria-label="Очистить">✕</button>
+        <button id="calendarBtn" class="calendar-btn" aria-label="Фильтр по дате" title="Фильтр по дате">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </button>
+      </div>
+
+      <!-- Выбранная дата (чип) -->
+      <div id="dateChip" class="date-chip" style="display:none">
+        <span id="dateChipText"></span>
+        <button id="dateChipClear" class="date-chip-clear" aria-label="Сбросить дату">✕</button>
+      </div>
+
+      <!-- Календарь-дропдаун -->
+      <div id="calendarDropdown" class="calendar-dropdown" style="display:none">
+        <div class="cal-header">
+          <button id="calPrev" class="cal-nav" aria-label="Предыдущий месяц">‹</button>
+          <span id="calTitle" class="cal-title"></span>
+          <button id="calNext" class="cal-nav" aria-label="Следующий месяц">›</button>
+        </div>
+        <div class="cal-weekdays">
+          <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+        </div>
+        <div id="calGrid" class="cal-grid"></div>
+      </div>
+
+      <p id="searchStatus" class="search-status"></p>
     </div>
-    <p id="searchStatus" class="search-status"></p>
 
     <main id="feed" class="feed"></main>
     <div id="scrollLoader" class="scroll-loader" style="display:none"><div class="loader-dots"><span></span><span></span><span></span></div></div>
