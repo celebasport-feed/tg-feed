@@ -81,7 +81,17 @@
   <div class="lightbox" id="lightbox">
     <button class="lb-close" id="lbClose" aria-label="Закрыть"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     <button class="lb-nav lb-prev" id="lbPrev" aria-label="Назад">‹</button>
-    <img class="lb-img" id="lbImg" src="" alt="">
+    <div class="lb-stage">
+      <img class="lb-img" id="lbImg" src="" alt="">
+      <video class="lb-video" id="lbVideo" playsinline controls preload="metadata"></video>
+      <div class="lb-fallback" id="lbFallback">
+        <img class="lb-fallback-img" id="lbFallbackImg" src="" alt="">
+        <div class="lb-fallback-card">
+          <p class="lb-fallback-text">Видео доступно только в Telegram</p>
+          <a class="lb-fallback-link" id="lbFallbackLink" href="#" target="_blank" rel="noopener">Открыть в Telegram ↗</a>
+        </div>
+      </div>
+    </div>
     <button class="lb-nav lb-next" id="lbNext" aria-label="Вперёд">›</button>
     <div class="lb-counter" id="lbCounter"></div>
   </div>
