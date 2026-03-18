@@ -274,7 +274,7 @@
     let reactHTML = '';
     if (post.reactions && post.reactions.length) {
       reactHTML = '<div class="post-reactions">' + post.reactions.map(r =>
-        `<span class="post-reaction">${r.emoji} ${fmtNum(r.count)}</span>`
+        `<span class="post-reaction">${normalizeEmoji(r.emoji)} ${fmtNum(r.count)}</span>`
       ).join('') + '</div>';
     }
     el.innerHTML = `${mediaHTML}${docsHTML}<div class="post-body"><div class="post-head"><time class="post-date" datetime="${post.date}">${dt}</time><div class="post-actions"><button class="act-btn btn-copy" data-pid="${post.id}" title="Скопировать ссылку"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></button></div></div><div class="post-text">${textHTML}</div></div>${reactHTML}<div class="post-foot">${views}${fwds}<a class="post-link-orig" href="${attr(post.url)}" target="_blank" rel="noopener">Оригинал ↗</a></div>`;
@@ -296,6 +296,7 @@
   function fmtNum(n){return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(n)}
   function fmtBytes(b){return b>=1e6?(b/1e6).toFixed(1)+' МБ':b>=1e3?(b/1e3).toFixed(0)+' КБ':b+' Б'}
   function fmtDur(s){return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
+  function normalizeEmoji(s){return String(s||'').replace(/\u2764(?!\uFE0F)/g,'\u2764\uFE0F')}
   function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
   function attr(s){return s.replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
   function escRE(s){return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}
