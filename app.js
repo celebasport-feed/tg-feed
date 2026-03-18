@@ -1,12 +1,3 @@
-/* ============================================================
-   CELEBASPORT WEB FEED — app.js v7
-   - Календарь с подсветкой дат, на которые есть посты
-   - Текст отображается полностью
-   - Видео/документы → Telegram
-   - Динамические подписчики
-   - Бесконечный скролл
-   ============================================================ */
-
 (function () {
   'use strict';
 
@@ -224,6 +215,25 @@
     return `<span class="media-open" data-pid="${pid}" data-media-idx="${mediaIdx}" role="button" tabindex="0" aria-label="Открыть галерею">${EXPAND_SVG}</span>`;
   }
 
+  function getDiscussionRef(postUrl) {
+    try {
+      const u = new URL(postUrl);
+      const parts = u.pathname.split('/').filter(Boolean);
+      let channel = '', postId = '';
+      if (parts[0] === 's' && parts.length >= 3) {
+        channel = parts[1];
+        postId = parts[2];
+      } else if (parts.length >= 2) {
+        channel = parts[0];
+        postId = parts[1];
+      }
+      if (!channel || !/^\d+$/.test(postId)) return '';
+      return `${channel}/${postId}`;
+    } catch {
+      return '';
+    }
+  }
+
   // ========== POST CARD ==========
   function card(post) {
     const el = document.createElement('article');
@@ -275,15 +285,18 @@
 
     const textHTML = fmtContent(post);
     const dt = fmtDate(post.date);
+    const discussionRef = getDiscussionRef(post.url);
     const views=post.views?`<span class="post-stat"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>${fmtNum(post.views)}</span>`:'';
     const fwds=post.forwards?`<span class="post-stat"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 014-4h12"/></svg>${fmtNum(post.forwards)}</span>`:'';
+    const commentsBtn = discussionRef ? `<button class="post-comments-btn" data-comments-toggle="${post.id}" type="button" aria-expanded="false">Комментарии</button>` : '';
+    const commentsHTML = discussionRef ? `<div class="post-comments" id="comments-${post.id}" hidden><div class="post-comments-inner"><div class="post-comments-loader">Загружаем комментарии…</div></div></div>` : '';
     let reactHTML = '';
     if (post.reactions && post.reactions.length) {
       reactHTML = '<div class="post-reactions">' + post.reactions.map(r =>
         `<span class="post-reaction">${normalizeEmoji(r.emoji)} ${fmtNum(r.count)}</span>`
       ).join('') + '</div>';
     }
-    el.innerHTML = `${mediaHTML}${docsHTML}<div class="post-body"><div class="post-head"><time class="post-date" datetime="${post.date}">${dt}</time><div class="post-actions"><button class="act-btn btn-copy" data-pid="${post.id}" title="Скопировать ссылку"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></button></div></div><div class="post-text">${textHTML}</div></div>${reactHTML}<div class="post-foot">${views}${fwds}<a class="post-link-orig" href="${attr(post.url)}" target="_blank" rel="noopener">Оригинал ↗</a></div>`;
+    el.innerHTML = `${mediaHTML}${docsHTML}<div class="post-body"><div class="post-head"><time class="post-date" datetime="${post.date}">${dt}</time><div class="post-actions"><button class="act-btn btn-copy" data-pid="${post.id}" title="Скопировать ссылку"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></button></div></div><div class="post-text">${textHTML}</div></div>${reactHTML}<div class="post-foot">${views}${fwds}${commentsBtn}<a class="post-link-orig" href="${attr(post.url)}" target="_blank" rel="noopener">Оригинал ↗</a></div>${commentsHTML}`;
     return el;
   }
 
@@ -336,6 +349,7 @@
 
   // ========== LIGHTBOX ==========
   let lbItems=[],lbI=0;
+  let openCommentsPostId=null;
   function resetLBMedia(){
     dom.lbImg.style.display='none';
     dom.lbImg.removeAttribute('src');
@@ -391,6 +405,49 @@
   function copyLink(pid){navigator.clipboard.writeText(`${location.origin}${location.pathname}#post-${pid}`).then(toast).catch(toast)}
   function toast(){dom.toast.classList.add('show');setTimeout(()=>dom.toast.classList.remove('show'),1800)}
   function scrollToHash(){const h=location.hash;if(!h||!h.startsWith('#post-'))return;while(shown<filtered.length){if(document.getElementById(h.slice(1)))break;more()}setTimeout(()=>{const el=document.getElementById(h.slice(1));if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('highlighted');setTimeout(()=>el.classList.remove('highlighted'),3000)}},150)}
+  function loadCommentsWidget(postId){
+    const post=allPosts.find(x=>x.id===Number(postId));
+    const container=document.getElementById(`comments-${postId}`);
+    if(!post||!container)return;
+    const host=container.querySelector('.post-comments-inner');
+    if(!host||host.dataset.loaded==='1')return;
+    const discussionRef=getDiscussionRef(post.url);
+    if(!discussionRef){
+      host.innerHTML='<div class="post-comments-loader">Комментарии для этого поста недоступны.</div>';
+      return;
+    }
+    host.innerHTML='';
+    const script=document.createElement('script');
+    script.async=true;
+    script.src='https://telegram.org/js/telegram-widget.js?22';
+    script.setAttribute('data-telegram-discussion', discussionRef);
+    script.setAttribute('data-comments-limit', '10');
+    script.setAttribute('data-dark', '1');
+    script.setAttribute('data-color', '22c55e');
+    host.appendChild(script);
+    host.dataset.loaded='1';
+  }
+  function setCommentsExpanded(postId, expanded){
+    const btn=document.querySelector(`[data-comments-toggle="${postId}"]`);
+    const panel=document.getElementById(`comments-${postId}`);
+    if(btn) {
+      btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      btn.textContent = expanded ? 'Скрыть комментарии' : 'Комментарии';
+    }
+    if(panel) panel.hidden = !expanded;
+  }
+  function toggleComments(postId){
+    const id=Number(postId);
+    const isSame=openCommentsPostId===id;
+    if(openCommentsPostId!==null) setCommentsExpanded(openCommentsPostId,false);
+    if(isSame){
+      openCommentsPostId=null;
+      return;
+    }
+    openCommentsPostId=id;
+    setCommentsExpanded(id,true);
+    loadCommentsWidget(id);
+  }
 
   // ========== EVENTS ==========
   let sTO;
@@ -405,6 +462,8 @@
       openLB(th.dataset.pid,th.dataset.mediaIdx);
       return;
     }
+    const commentsToggle=e.target.closest('[data-comments-toggle]');
+    if(commentsToggle){toggleComments(commentsToggle.dataset.commentsToggle);return}
     const cp=e.target.closest('.btn-copy');if(cp){copyLink(cp.dataset.pid);return}
     const tg=e.target.closest('.htag');if(tg){dom.searchInput.value=tg.dataset.tag;onSearch();window.scrollTo({top:0,behavior:'smooth'});return}
   });
