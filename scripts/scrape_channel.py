@@ -147,28 +147,6 @@ def parse_views(text: str):
     except ValueError:
         return None
 
-
-def parse_comments_count(msg) -> int | None:
-    selectors = (
-        ".tgme_widget_message_replies",
-        ".tgme_widget_message_comments",
-        ".tgme_widget_message_comment",
-    )
-    for selector in selectors:
-        el = msg.select_one(selector)
-        if not el:
-            continue
-        raw_text = el.get_text(" ", strip=True)
-        count = parse_views(raw_text)
-        if count is None:
-            m = re.search(r"(\d+(?:[.,]\d+)?\s*[KM]?)", raw_text, re.I)
-            if m:
-                count = parse_views(m.group(1).replace(",", ".").replace(" ", ""))
-        if count is not None:
-            return count
-    return None
-
-
 def extract_bg_url(style: str):
     m = re.search(r"url\(['\"]?(.*?)['\"]?\)", style)
     if not m:
@@ -394,7 +372,6 @@ def fetch_post_via_embed(channel: str, post_id: int) -> dict | None:
     views = parse_views(views_el.text) if views_el else None
     fwd_el = msg.select_one(".tgme_widget_message_forwards")
     forwards = parse_views(fwd_el.text) if fwd_el else None
-    comments_count = parse_comments_count(msg)
 
     # Реакции — реальная структура Telegram:
     # <span class="tgme_reaction"><i class="emoji"><b>❤</b></i>61</span>
@@ -427,7 +404,6 @@ def fetch_post_via_embed(channel: str, post_id: int) -> dict | None:
         "media": media,
         "views": views,
         "forwards": forwards,
-        "comments_count": comments_count,
         "reactions": reactions,
         "url": post_url,
     }
@@ -573,8 +549,6 @@ def repair_posts(channel: str, posts: list[dict], repair_all: bool = False) -> l
                 old["views"] = embed_data["views"]
             if embed_data.get("forwards"):
                 old["forwards"] = embed_data["forwards"]
-            if embed_data.get("comments_count") is not None:
-                old["comments_count"] = embed_data["comments_count"]
             if embed_data.get("reactions"):
                 old["reactions"] = embed_data["reactions"]
 
@@ -638,7 +612,6 @@ def parse_single_message(msg, channel: str) -> dict | None:
     views = parse_views(views_el.text) if views_el else None
     fwd_el = msg.select_one(".tgme_widget_message_forwards")
     forwards = parse_views(fwd_el.text) if fwd_el else None
-    comments_count = parse_comments_count(msg)
 
     # Реакции — реальная структура Telegram:
     # <span class="tgme_reaction"><i class="emoji"><b>❤</b></i>61</span>
@@ -661,7 +634,6 @@ def parse_single_message(msg, channel: str) -> dict | None:
     return {
         "id": pid, "date": date_str, "text": pt, "html": hc,
         "media": media, "views": views, "forwards": forwards,
-        "comments_count": comments_count,
         "reactions": reactions, "url": post_url, "_truncated": is_truncated(pt),
     }
 
@@ -677,7 +649,7 @@ def parse_posts(html: str, channel: str) -> list[dict]:
             continue
 
         all_media, group_text_html, group_text_plain = [], "", ""
-        group_date, group_views, group_forwards, group_comments_count, group_id = "", None, None, None, None
+        group_date, group_views, group_forwards, group_id = "", None, None, None
         group_truncated = False
         group_reactions = []
 
@@ -691,7 +663,6 @@ def parse_posts(html: str, channel: str) -> list[dict]:
             if parsed["html"]:       group_text_html = parsed["html"]; group_text_plain = parsed["text"]; group_truncated = parsed.get("_truncated", False)
             if parsed["views"]:      group_views = parsed["views"]
             if parsed["forwards"]:   group_forwards = parsed["forwards"]
-            if parsed.get("comments_count") is not None: group_comments_count = parsed["comments_count"]
             if parsed.get("reactions"): group_reactions = parsed["reactions"]
             if group_id is None or parsed["id"] > group_id:
                 group_id = parsed["id"]
@@ -703,7 +674,6 @@ def parse_posts(html: str, channel: str) -> list[dict]:
             "id": group_id, "date": group_date,
             "text": group_text_plain, "html": group_text_html,
              "media": all_media, "views": group_views, "forwards": group_forwards,
-            "comments_count": group_comments_count,
             "reactions": group_reactions, "url": f"https://t.me/{channel}/{group_id}",
             "_truncated": group_truncated,
         })
@@ -767,8 +737,6 @@ def scrape(channel, max_pages):
                     post["date"] = embed["date"]
                 if embed.get("media") and len(embed["media"]) > len(post.get("media", [])):
                     post["media"] = embed["media"]
-                if embed.get("comments_count") is not None:
-                    post["comments_count"] = embed["comments_count"]
             post.pop("_truncated", None)
             time.sleep(DELAY_EMBED)
 
@@ -803,7 +771,6 @@ def merge(new_posts, path):
                 o["text"] = p["text"]; o["html"] = p.get("html","")
             if p.get("views"):    o["views"] = p["views"]
             if p.get("forwards"): o["forwards"] = p["forwards"]
-            if p.get("comments_count") is not None: o["comments_count"] = p["comments_count"]
             if p.get("reactions"): o["reactions"] = p["reactions"]
             if p.get("media") and (not o.get("media") or len(p["media"]) > len(o.get("media",[]))):
                 o["media"] = p["media"]
