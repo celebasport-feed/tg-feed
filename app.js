@@ -409,8 +409,7 @@
   function toast(){dom.toast.classList.add('show');setTimeout(()=>dom.toast.classList.remove('show'),1800)}
   function scrollToHash(){const h=location.hash;if(!h||!h.startsWith('#post-'))return;while(shown<filtered.length){if(document.getElementById(h.slice(1)))break;more()}setTimeout(()=>{const el=document.getElementById(h.slice(1));if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('highlighted');setTimeout(()=>el.classList.remove('highlighted'),3000)}},150)}
   function clearMiniappTimer(){if(miniappTimer){clearTimeout(miniappTimer);miniappTimer=null}}
-  function setMiniappStatus(title,text){
-    dom.miniappStatus.querySelector('.miniapp-status-title').textContent=title;
+  function setMiniappStatus(text){
     dom.miniappStatusText.textContent=text;
   }
   function openMiniapp(){
@@ -418,7 +417,7 @@
     dom.miniappOpenWindow.href=MINIAPP_URL;
     dom.miniappFrame.removeAttribute('src');
     dom.miniappStatus.classList.remove('is-hidden','is-warning');
-    setMiniappStatus('Загружаем обзоры медиа…','Если встроенный режим не откроется, воспользуйтесь кнопкой «Открыть в новом окне».');
+    setMiniappStatus('Загрузка… Если что-то блокирует iframe, откройте в новом окне.');
     dom.miniappModal.classList.add('open');
     dom.miniappModal.setAttribute('aria-hidden','false');
     document.body.style.overflow='hidden';
@@ -426,7 +425,7 @@
     miniappTimer=setTimeout(()=>{
       dom.miniappStatus.classList.remove('is-hidden');
       dom.miniappStatus.classList.add('is-warning');
-      setMiniappStatus('Не получилось встроить приложение?','Похоже, браузер или расширение блокирует iframe. Откройте сервис в новом окне.');
+      setMiniappStatus('Похоже, iframe блокируется браузером или расширением. Откройте сервис в новом окне.');
     },4000);
   }
   function closeMiniapp(){
