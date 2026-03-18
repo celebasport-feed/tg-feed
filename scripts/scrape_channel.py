@@ -362,6 +362,17 @@ def fetch_post_via_embed(channel: str, post_id: int) -> dict | None:
     fwd_el = msg.select_one(".tgme_widget_message_forwards")
     forwards = parse_views(fwd_el.text) if fwd_el else None
 
+    # Реакции
+    reactions = []
+    for react_el in msg.select(".tgme_widget_message_reaction"):
+        emoji_el = react_el.select_one(".tgme_widget_message_reaction_emoji")
+        count_el = react_el.select_one(".tgme_widget_message_reaction_count")
+        if emoji_el and count_el:
+            emoji = emoji_el.get_text().strip()
+            count = parse_views(count_el.get_text()) or 0
+            if emoji and count:
+                reactions.append({"emoji": emoji, "count": count})
+
     # Медиа
     media = extract_media(msg, post_url, channel)
 
@@ -376,6 +387,7 @@ def fetch_post_via_embed(channel: str, post_id: int) -> dict | None:
         "media": media,
         "views": views,
         "forwards": forwards,
+        "reactions": reactions,
         "url": post_url,
     }
 
@@ -520,6 +532,8 @@ def repair_posts(channel: str, posts: list[dict], repair_all: bool = False) -> l
                 old["views"] = embed_data["views"]
             if embed_data.get("forwards"):
                 old["forwards"] = embed_data["forwards"]
+            if embed_data.get("reactions"):
+                old["reactions"] = embed_data["reactions"]
 
             if changes:
                 print(f"      ✅ {'; '.join(changes)}")
@@ -582,12 +596,23 @@ def parse_single_message(msg, channel: str) -> dict | None:
     fwd_el = msg.select_one(".tgme_widget_message_forwards")
     forwards = parse_views(fwd_el.text) if fwd_el else None
 
+    # Реакции
+    reactions = []
+    for react_el in msg.select(".tgme_widget_message_reaction"):
+        emoji_el = react_el.select_one(".tgme_widget_message_reaction_emoji")
+        count_el = react_el.select_one(".tgme_widget_message_reaction_count")
+        if emoji_el and count_el:
+            emoji = emoji_el.get_text().strip()
+            count = parse_views(count_el.get_text()) or 0
+            if emoji and count:
+                reactions.append({"emoji": emoji, "count": count})
+
     media = extract_media(msg, post_url, channel)
 
     return {
         "id": pid, "date": date_str, "text": pt, "html": hc,
         "media": media, "views": views, "forwards": forwards,
-        "url": post_url, "_truncated": is_truncated(pt),
+        "reactions": reactions, "url": post_url, "_truncated": is_truncated(pt),
     }
 
 
@@ -604,6 +629,7 @@ def parse_posts(html: str, channel: str) -> list[dict]:
         all_media, group_text_html, group_text_plain = [], "", ""
         group_date, group_views, group_forwards, group_id = "", None, None, None
         group_truncated = False
+        group_reactions = []
 
         for gm in group_msgs:
             parsed = parse_single_message(gm, channel)
@@ -615,6 +641,7 @@ def parse_posts(html: str, channel: str) -> list[dict]:
             if parsed["html"]:       group_text_html = parsed["html"]; group_text_plain = parsed["text"]; group_truncated = parsed.get("_truncated", False)
             if parsed["views"]:      group_views = parsed["views"]
             if parsed["forwards"]:   group_forwards = parsed["forwards"]
+            if parsed.get("reactions"): group_reactions = parsed["reactions"]
             if group_id is None or parsed["id"] > group_id:
                 group_id = parsed["id"]
 
@@ -624,8 +651,8 @@ def parse_posts(html: str, channel: str) -> list[dict]:
         posts.append({
             "id": group_id, "date": group_date,
             "text": group_text_plain, "html": group_text_html,
-            "media": all_media, "views": group_views, "forwards": group_forwards,
-            "url": f"https://t.me/{channel}/{group_id}",
+             "media": all_media, "views": group_views, "forwards": group_forwards,
+            "reactions": group_reactions, "url": f"https://t.me/{channel}/{group_id}",
             "_truncated": group_truncated,
         })
 
@@ -722,6 +749,7 @@ def merge(new_posts, path):
                 o["text"] = p["text"]; o["html"] = p.get("html","")
             if p.get("views"):    o["views"] = p["views"]
             if p.get("forwards"): o["forwards"] = p["forwards"]
+            if p.get("reactions"): o["reactions"] = p["reactions"]
             if p.get("media") and (not o.get("media") or len(p["media"]) > len(o.get("media",[]))):
                 o["media"] = p["media"]
 
