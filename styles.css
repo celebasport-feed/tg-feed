@@ -53,13 +53,16 @@ img{display:block;max-width:100%}
 .app-header{background:var(--bg-surface);border-radius:16px;padding:16px;border:1px solid var(--border);box-shadow:var(--shadow-screen)}
 .header-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
 .header-channel{display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden}
+.header-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .channel-avatar{width:40px;height:40px;border-radius:12px;object-fit:cover;flex-shrink:0;border:1px solid var(--border-hover)}
 .channel-meta{min-width:0;overflow:hidden}
 .channel-name{font-family:var(--font-heading);font-size:16px;font-weight:800;color:#fafafa;line-height:1.2;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .channel-handle{font-size:11px;color:var(--text-secondary);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.btn-tg{display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border-radius:var(--radius-pill);border:1px solid var(--border-hover);background:transparent;color:var(--text-primary)!important;font-size:12px;font-weight:600;white-space:nowrap;flex-shrink:0;transition:border-color var(--dur),background var(--dur)}
+.btn-tg,.btn-secondary{display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border-radius:var(--radius-pill);border:1px solid var(--border-hover);background:transparent;color:var(--text-primary)!important;font-size:12px;font-weight:600;white-space:nowrap;flex-shrink:0;transition:border-color var(--dur),background var(--dur),color var(--dur)}
 .btn-tg:hover{border-color:var(--accent);background:rgba(34,197,94,.08);color:var(--accent)!important}
-.btn-tg svg{opacity:.8;flex-shrink:0}
+.btn-secondary{border-color:rgba(59,130,246,.28);background:rgba(59,130,246,.09);color:#dbeafe!important}
+.btn-secondary:hover{border-color:var(--accent-blue);background:rgba(59,130,246,.16);color:#fff!important}
+.btn-tg svg,.btn-secondary svg{opacity:.8;flex-shrink:0}
 .channel-desc{font-size:13px;color:var(--text-secondary);line-height:1.5}
 .channel-desc a{color:var(--accent)}
 
@@ -480,8 +483,10 @@ mark.hl{background:rgba(251,191,36,.25);color:var(--accent-yellow);border-radius
 /* ===== SMALL MOBILE ===== */
 @media(max-width:400px){
   .app{padding:12px 12px 24px}
+  .header-top{align-items:flex-start}
+  .header-actions{flex-direction:column;align-items:stretch}
   .btn-tg-label{display:none}
-  .btn-tg{padding:7px 9px}
+  .btn-tg,.btn-secondary{padding:7px 9px;justify-content:center}
   .channel-name{font-size:14px}
   .post-body{padding:12px}
   .post-text{font-size:13px}
