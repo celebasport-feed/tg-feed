@@ -28,7 +28,7 @@
           </div>
         </div>
         <div class="header-actions">
-          <a class="btn-secondary" href="https://heroic-horse-64b078.netlify.app/" target="_blank" rel="noopener">
+          <a class="btn-secondary" href="https://heroic-horse-64b078.netlify.app/" target="_blank" rel="noopener" data-miniapp-open>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="M12 3v18"/><circle cx="12" cy="12" r="9" opacity=".22" fill="currentColor" stroke="none"/></svg>
             <span>Обзоры медиа</span>
           </a>
@@ -100,6 +100,30 @@
     </div>
     <button class="lb-nav lb-next" id="lbNext" aria-label="Вперёд">›</button>
     <div class="lb-counter" id="lbCounter"></div>
+  </div>
+  <div class="miniapp-modal" id="miniappModal" aria-hidden="true">
+    <div class="miniapp-shell" role="dialog" aria-modal="true" aria-labelledby="miniappTitle">
+      <div class="miniapp-head">
+        <div class="miniapp-copy">
+          <p class="miniapp-eyebrow">Встроенный режим</p>
+          <h2 class="miniapp-title" id="miniappTitle">Обзоры медиа</h2>
+        </div>
+        <div class="miniapp-actions">
+          <a class="miniapp-open-window" id="miniappOpenWindow" href="https://heroic-horse-64b078.netlify.app/" target="_blank" rel="noopener">Открыть в новом окне ↗</a>
+          <button class="miniapp-close" id="miniappClose" type="button" aria-label="Закрыть">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="miniapp-body">
+        <div class="miniapp-status" id="miniappStatus">
+          <div class="miniapp-spinner" aria-hidden="true"></div>
+          <p class="miniapp-status-title">Загружаем обзоры медиа…</p>
+          <p class="miniapp-status-text" id="miniappStatusText">Если встроенный режим не откроется, воспользуйтесь кнопкой «Открыть в новом окне».</p>
+        </div>
+        <iframe class="miniapp-frame" id="miniappFrame" title="Обзоры медиа" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      </div>
+    </div>
   </div>
   <div class="toast" id="toast">Ссылка скопирована</div>
   <script src="app.js"></script>
