@@ -457,6 +457,29 @@ mark.hl{background:rgba(251,191,36,.25);color:var(--accent-yellow);border-radius
 .lb-prev{left:12px}.lb-next{right:12px}
 .lb-counter{position:absolute;bottom:16px;left:50%;z-index:6;transform:translateX(-50%);font-size:12px;color:rgba(255,255,255,.5)}
 
+/* ===== MINIAPP MODAL ===== */
+.miniapp-modal{display:none;position:fixed;inset:0;z-index:1200;padding:18px;background:rgba(2,6,23,.76);backdrop-filter:blur(14px)}
+.miniapp-modal.open{display:flex;align-items:center;justify-content:center}
+.miniapp-shell{width:min(1180px,100%);height:min(88vh,920px);display:flex;flex-direction:column;border-radius:22px;overflow:hidden;border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg, rgba(15,23,42,.98), rgba(3,7,18,.98));box-shadow:0 30px 80px rgba(0,0,0,.45)}
+.miniapp-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.07);background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01))}
+.miniapp-copy{min-width:0}
+.miniapp-eyebrow{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-blue);margin-bottom:4px}
+.miniapp-title{font-family:var(--font-heading);font-size:18px;line-height:1.1;color:#f8fafc}
+.miniapp-actions{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.miniapp-open-window{display:inline-flex;align-items:center;justify-content:center;padding:9px 12px;border-radius:999px;border:1px solid rgba(59,130,246,.28);background:rgba(59,130,246,.12);color:#dbeafe!important;font-size:12px;font-weight:700;white-space:nowrap}
+.miniapp-open-window:hover{background:rgba(59,130,246,.18);color:#fff!important}
+.miniapp-close{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:999px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:#fff;cursor:pointer;transition:background var(--dur),border-color var(--dur)}
+.miniapp-close:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.18)}
+.miniapp-body{position:relative;flex:1;min-height:0;background:#020617}
+.miniapp-frame{width:100%;height:100%;border:0;background:#fff}
+.miniapp-status{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:28px;background:linear-gradient(180deg, rgba(2,6,23,.82), rgba(2,6,23,.68));text-align:center;transition:opacity .25s var(--ease),visibility .25s var(--ease)}
+.miniapp-status.is-hidden{opacity:0;visibility:hidden;pointer-events:none}
+.miniapp-status.is-warning{background:linear-gradient(180deg, rgba(15,23,42,.82), rgba(2,6,23,.74))}
+.miniapp-spinner{width:28px;height:28px;border-radius:999px;border:2px solid rgba(255,255,255,.14);border-top-color:var(--accent-blue);animation:miniapp-spin .8s linear infinite}
+.miniapp-status-title{font-size:16px;font-weight:700;color:#f8fafc}
+.miniapp-status-text{max-width:420px;font-size:13px;line-height:1.55;color:#94a3b8}
+@keyframes miniapp-spin{to{transform:rotate(360deg)}}
+
 /* ===== TOAST ===== */
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(60px);background:var(--accent);color:#000;font-weight:600;font-size:13px;padding:8px 18px;border-radius:var(--radius-pill);opacity:0;transition:transform .25s var(--ease),opacity .25s;z-index:2000;pointer-events:none}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -478,15 +501,28 @@ mark.hl{background:rgba(251,191,36,.25);color:var(--accent-yellow);border-radius
   .post-body{padding:16px}
   .post-text{font-size:15px}
   .post-foot{padding:0 16px 14px}
+  .miniapp-modal{padding:28px}
+  .miniapp-head{padding:16px 18px}
 }
 
 /* ===== SMALL MOBILE ===== */
+@media(max-width:767px){
+  .miniapp-modal{padding:0;background:rgba(2,6,23,.9)}
+  .miniapp-shell{width:100%;height:100%;border-radius:0;border:none}
+  .miniapp-head{padding:12px 12px 10px;align-items:flex-start}
+  .miniapp-actions{width:100%;justify-content:flex-end}
+  .miniapp-open-window{font-size:11px;padding:8px 10px}
+}
+
 @media(max-width:400px){
   .app{padding:12px 12px 24px}
   .header-top{align-items:flex-start}
   .header-actions{flex-direction:column;align-items:stretch}
   .btn-tg-label{display:none}
   .btn-tg,.btn-secondary{padding:7px 9px;justify-content:center}
+  .miniapp-head{flex-direction:column;align-items:stretch}
+  .miniapp-actions{justify-content:space-between}
+  .miniapp-open-window{flex:1}
   .channel-name{font-size:14px}
   .post-body{padding:12px}
   .post-text{font-size:13px}
