@@ -2,17 +2,20 @@
   'use strict';
 
   const CFG = { postsUrl:'data/posts.json', channelUrl:'data/channel.json', perPage:15, locale:'ru-RU', scrollMargin:'800px' };
+  const MINIAPP_URL = 'https://heroic-horse-64b078.netlify.app/';
 
   let allPosts=[], filtered=[], shown=0, query='', loading=false;
   let selectedDate=null; // 'YYYY-MM-DD' или null
   let calYear, calMonth; // текущий месяц в календаре
   let postDatesSet = new Set(); // Set<'YYYY-MM-DD'> — все даты с постами
+  let miniappTimer=null;
 
   const dom = {};
   ['feed','searchInput','searchClear','searchStatus','emptyState','scrollLoader',
    'lightbox','lbImg','lbVideo','lbFallback','lbFallbackImg','lbFallbackLink','lbClose','lbPrev','lbNext','lbCounter','toast',
    'subscriberCount','channelAvatar',
    'calendarBtn','calendarDropdown','calPrev','calNext','calTitle','calGrid',
+   'miniappModal','miniappFrame','miniappStatus','miniappStatusText','miniappOpenWindow','miniappClose',
    'dateChip','dateChipText','dateChipClear'
   ].forEach(id => dom[id] = document.getElementById(id));
 
@@ -405,6 +408,35 @@
   function copyLink(pid){navigator.clipboard.writeText(`${location.origin}${location.pathname}#post-${pid}`).then(toast).catch(toast)}
   function toast(){dom.toast.classList.add('show');setTimeout(()=>dom.toast.classList.remove('show'),1800)}
   function scrollToHash(){const h=location.hash;if(!h||!h.startsWith('#post-'))return;while(shown<filtered.length){if(document.getElementById(h.slice(1)))break;more()}setTimeout(()=>{const el=document.getElementById(h.slice(1));if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('highlighted');setTimeout(()=>el.classList.remove('highlighted'),3000)}},150)}
+  function clearMiniappTimer(){if(miniappTimer){clearTimeout(miniappTimer);miniappTimer=null}}
+  function setMiniappStatus(title,text){
+    dom.miniappStatus.querySelector('.miniapp-status-title').textContent=title;
+    dom.miniappStatusText.textContent=text;
+  }
+  function openMiniapp(){
+    clearMiniappTimer();
+    dom.miniappOpenWindow.href=MINIAPP_URL;
+    dom.miniappFrame.removeAttribute('src');
+    dom.miniappStatus.classList.remove('is-hidden','is-warning');
+    setMiniappStatus('Загружаем обзоры медиа…','Если встроенный режим не откроется, воспользуйтесь кнопкой «Открыть в новом окне».');
+    dom.miniappModal.classList.add('open');
+    dom.miniappModal.setAttribute('aria-hidden','false');
+    document.body.style.overflow='hidden';
+    dom.miniappFrame.src=MINIAPP_URL;
+    miniappTimer=setTimeout(()=>{
+      dom.miniappStatus.classList.remove('is-hidden');
+      dom.miniappStatus.classList.add('is-warning');
+      setMiniappStatus('Не получилось встроить приложение?','Похоже, браузер или расширение блокирует iframe. Откройте сервис в новом окне.');
+    },4000);
+  }
+  function closeMiniapp(){
+    clearMiniappTimer();
+    dom.miniappModal.classList.remove('open');
+    dom.miniappModal.setAttribute('aria-hidden','true');
+    dom.miniappFrame.removeAttribute('src');
+    dom.miniappStatus.classList.remove('is-hidden','is-warning');
+    document.body.style.overflow='';
+  }
   function loadCommentsWidget(postId){
     const post=allPosts.find(x=>x.id===Number(postId));
     const container=document.getElementById(`comments-${postId}`);
@@ -453,7 +485,16 @@
   let sTO;
   dom.searchInput.addEventListener('input',()=>{clearTimeout(sTO);sTO=setTimeout(onSearch,250)});
   dom.searchClear.addEventListener('click',()=>{dom.searchInput.value='';onSearch();dom.searchInput.focus()});
+  if(dom.miniappFrame){
+    dom.miniappFrame.addEventListener('load',()=>{
+      clearMiniappTimer();
+      dom.miniappStatus.classList.add('is-hidden');
+      dom.miniappStatus.classList.remove('is-warning');
+    });
+  }
   document.addEventListener('click',e=>{
+    const miniappBtn=e.target.closest('[data-miniapp-open]');
+    if(miniappBtn){e.preventDefault();openMiniapp();return}
     const mediaAction=e.target.closest('.media-open,.media-more');
     if(mediaAction&&mediaAction.dataset.pid){e.preventDefault();openLB(mediaAction.dataset.pid,mediaAction.dataset.mediaIdx);return}
     const th=e.target.closest('.media-thumb[data-pid]');
@@ -468,12 +509,15 @@
     const tg=e.target.closest('.htag');if(tg){dom.searchInput.value=tg.dataset.tag;onSearch();window.scrollTo({top:0,behavior:'smooth'});return}
   });
   dom.lbClose.addEventListener('click',closeLB);
+  if(dom.miniappClose) dom.miniappClose.addEventListener('click',closeMiniapp);
+  if(dom.miniappModal) dom.miniappModal.addEventListener('click',e=>{if(e.target===dom.miniappModal)closeMiniapp()});
   dom.lbPrev.addEventListener('click',()=>{lbI=(lbI-1+lbItems.length)%lbItems.length;showLB()});
   dom.lbNext.addEventListener('click',()=>{lbI=(lbI+1)%lbItems.length;showLB()});
   dom.lightbox.addEventListener('click',e=>{if(e.target===dom.lightbox)closeLB()});
   document.addEventListener('keydown',e=>{
     const mediaAction=document.activeElement&&document.activeElement.closest?document.activeElement.closest('.media-open,.media-more'):null;
     if(mediaAction&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openLB(mediaAction.dataset.pid,mediaAction.dataset.mediaIdx);return}
+    if(dom.miniappModal.classList.contains('open')&&e.key==='Escape'){closeMiniapp();return}
     if(!dom.lightbox.classList.contains('open'))return;
     if(e.key==='Escape')closeLB();
     if(e.key==='ArrowLeft'){lbI=(lbI-1+lbItems.length)%lbItems.length;showLB()}
@@ -482,6 +526,7 @@
 
   init();
 })();
+
 
 
 
