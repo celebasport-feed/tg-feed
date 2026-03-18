@@ -286,10 +286,9 @@
     const textHTML = fmtContent(post);
     const dt = fmtDate(post.date);
     const discussionRef = getDiscussionRef(post.url);
-    const commentsLabel = fmtCommentsLabel(post.comments_count);
     const views=post.views?`<span class="post-stat"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>${fmtNum(post.views)}</span>`:'';
     const fwds=post.forwards?`<span class="post-stat"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 014-4h12"/></svg>${fmtNum(post.forwards)}</span>`:'';
-    const commentsBtn = discussionRef ? `<button class="post-comments-btn" data-comments-toggle="${post.id}" data-comments-count="${attr(String(post.comments_count ?? ''))}" type="button" aria-expanded="false">${commentsLabel}</button>` : '';
+    const commentsBtn = discussionRef ? `<button class="post-comments-btn" data-comments-toggle="${post.id}" type="button" aria-expanded="false">Комментарии</button>` : '';
     const commentsHTML = discussionRef ? `<div class="post-comments" id="comments-${post.id}" hidden><div class="post-comments-inner"><div class="post-comments-loader">Загружаем комментарии…</div></div></div>` : '';
     let reactHTML = '';
     if (post.reactions && post.reactions.length) {
@@ -314,8 +313,6 @@
   // ========== UTILS ==========
   function fmtDate(iso){const d=new Date(iso);const day=d.toLocaleDateString(CFG.locale,{day:'numeric',month:'short'});const time=d.toLocaleTimeString(CFG.locale,{hour:'2-digit',minute:'2-digit'});const yr=d.getFullYear()!==new Date().getFullYear()?' '+d.getFullYear():'';return day+yr+', '+time}
   function fmtNum(n){return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(n)}
-  function pluralComments(n){const m=Math.abs(Number(n))%100;const d=m%10;if(m>=11&&m<=14)return'комментариев';if(d===1)return'комментарий';if(d>=2&&d<=4)return'комментария';return'комментариев'}
-  function fmtCommentsLabel(n){if(n===0)return'Нет комментариев';if(n==null||Number.isNaN(Number(n)))return'Комментарии';return `${fmtNum(Number(n))} ${pluralComments(n)}`}
   function fmtBytes(b){return b>=1e6?(b/1e6).toFixed(1)+' МБ':b>=1e3?(b/1e3).toFixed(0)+' КБ':b+' Б'}
   function fmtDur(s){return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
   function normalizeEmoji(s){return String(s||'').replace(/\u2764(?!\uFE0F)/g,'\u2764\uFE0F')}
@@ -435,7 +432,7 @@
     const panel=document.getElementById(`comments-${postId}`);
     if(btn) {
       btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-      btn.textContent = expanded ? 'Скрыть комментарии' : fmtCommentsLabel(btn.dataset.commentsCount === '' ? null : Number(btn.dataset.commentsCount));
+      btn.textContent = expanded ? 'Скрыть комментарии' : 'Комментарии';
     }
     if(panel) panel.hidden = !expanded;
   }
