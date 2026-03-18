@@ -164,6 +164,12 @@ def is_valid_date(date_str: str) -> bool:
     return bool(re.match(r"^\d{4}-\d{2}-\d{2}", date_str))
 
 
+def normalize_emoji(emoji: str) -> str:
+    if not emoji:
+        return ""
+    return re.sub("\u2764(?!\uFE0F)", "\u2764\uFE0F", emoji)
+
+
 def is_truncated(text: str) -> bool:
     if not text:
         return False
@@ -375,7 +381,7 @@ def fetch_post_via_embed(channel: str, post_id: int) -> dict | None:
         emoji_tag = react_el.select_one("i.emoji")
         if not emoji_tag:
             continue
-        emoji = emoji_tag.get_text().strip()
+        emoji = normalize_emoji(emoji_tag.get_text().strip())
         # Счётчик — текстовый узел после <i>, не внутри тега
         count_text = ""
         for child in react_el.children:
@@ -615,7 +621,7 @@ def parse_single_message(msg, channel: str) -> dict | None:
         emoji_tag = react_el.select_one("i.emoji")
         if not emoji_tag:
             continue
-        emoji = emoji_tag.get_text().strip()
+        emoji = normalize_emoji(emoji_tag.get_text().strip())
         count_text = ""
         for child in react_el.children:
             if isinstance(child, NavigableString):
