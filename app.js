@@ -26,6 +26,7 @@
   ].forEach(id => dom[id] = document.getElementById(id));
 
   const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+  const PLAY_SVG = `<svg class="vp-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
 
   // ========== INIT ==========
   async function init() {
@@ -217,28 +218,42 @@
     const videos = (post.media||[]).filter(m=>m.type==='video');
     const docs   = (post.media||[]).filter(m=>m.type==='document');
 
+    // Для видео без прямого URL нельзя надёжно понять, дубликат это или отдельный ролик.
+    // Поэтому сохраняем все записи как есть, чтобы не терять второй/третий ролик в альбомах.
+    const uniqueVideos = videos.map(v => ({...v, post_url: v.post_url || post.url}));
+
+    // Строим единую медиа-сетку: фото + видео вместе
+    const allMedia = [
+      ...photos.map((m, pi) => ({kind:'photo', _photoIdx: pi, ...m})),
+      ...uniqueVideos.map(v => ({kind:'video', ...v}))
+    ];
+
     let mediaHTML = '';
-    if (photos.length > 0) {
-      const sc = Math.min(photos.length, 3);
-      const items = photos.slice(0,sc).map((m,i) => {
+    if (allMedia.length > 0) {
+      const sc = Math.min(allMedia.length, 3);
+      const items = allMedia.slice(0, sc).map((m, i) => {
         let ov = '';
-        if (i===sc-1 && photos.length>3) ov=`<div class="media-more">+${photos.length-3}</div>`;
-        return `<div class="media-thumb" data-pid="${post.id}" data-idx="${i}"><img src="${attr(m.url)}" alt="" loading="lazy" onerror="this.parentElement.classList.add('media-broken')">${ov}</div>`;
+        if (i === sc-1 && allMedia.length > 3) ov = `<div class="media-more">+${allMedia.length-3}</div>`;
+        if (m.kind === 'photo') {
+          return `<div class="media-thumb" data-pid="${post.id}" data-idx="${m._photoIdx}"><img src="${attr(m.url)}" alt="" loading="lazy" onerror="this.parentElement.classList.add('media-broken')">${ov}</div>`;
+        } else {
+          const dur = m.duration ? `<span class="vp-dur">${fmtDur(m.duration)}</span>` : '';
+
+          // При наличии прямого URL показываем само видео с autoplay (muted).
+          if (m.url) {
+            const poster = m.thumbnail ? `poster="${attr(m.thumbnail)}"` : '';
+            return `<div class="media-thumb media-video-native">${dur ? `<div class="vp-dur-wrap">${dur}</div>` : ''}<video src="${attr(m.url)}" ${poster} autoplay muted playsinline loop controls preload="metadata" onerror="this.closest('.media-thumb').classList.add('media-broken')"></video>${ov}</div>`;
+          }
+
+          // Если прямого URL нет (часто у blur/ограниченных видео), показываем fallback-блок,
+          // но не Telegram embed-превью поста.
+          const inner = m.thumbnail
+            ? `<img src="${attr(m.thumbnail)}" alt="" loading="lazy" onerror="this.style.display='none'"><div class="vp-overlay">${PLAY_SVG}${dur}</div>`
+            : `<div class="vp-placeholder">${PLAY_SVG}${dur}<span class="vp-label">Видео</span></div>`;
+          return `<a class="media-thumb media-video" href="${attr(m.post_url || post.url)}" target="_blank" rel="noopener">${inner}${ov}</a>`;
+        }
       }).join('');
       mediaHTML = `<div class="post-media" data-count="${sc}">${items}</div>`;
-    }
-
-    let videosHTML = '';
-    if (videos.length > 0) {
-      videosHTML = '<div class="post-videos">' + videos.map(v => {
-        const dur=v.duration?fmtDur(v.duration):'';
-        const link=v.post_url||post.url;
-        const thumb=v.thumbnail;
-        if (thumb) {
-          return `<a class="video-card" href="${attr(link)}" target="_blank" rel="noopener"><img src="${attr(thumb)}" alt="" loading="lazy" onerror="this.style.display='none'"><div class="video-play-overlay"><svg width="28" height="28" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div><div class="media-video-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>${dur?' '+dur:' Видео'}</div></a>`;
-        }
-        return `<a class="video-card video-card--no-thumb" href="${attr(link)}" target="_blank" rel="noopener"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" opacity="0.6"><path d="M8 5v14l11-7z"/></svg><span>Видео${dur?' · '+dur:''}</span><span class="video-card-tg">Смотреть в Telegram ↗</span></a>`;
-      }).join('') + '</div>';
     }
 
     let docsHTML = '';
@@ -257,7 +272,7 @@
     const views=post.views?`<span class="post-stat"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>${fmtNum(post.views)}</span>`:'';
     const fwds=post.forwards?`<span class="post-stat"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 014-4h12"/></svg>${fmtNum(post.forwards)}</span>`:'';
 
-    el.innerHTML = `${mediaHTML}${videosHTML}${docsHTML}<div class="post-body"><div class="post-head"><time class="post-date" datetime="${post.date}">${dt}</time><div class="post-actions"><button class="act-btn btn-copy" data-pid="${post.id}" title="Скопировать ссылку"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></button></div></div><div class="post-text">${textHTML}</div></div><div class="post-foot">${views}${fwds}<a class="post-link-orig" href="${attr(post.url)}" target="_blank" rel="noopener">Оригинал ↗</a></div>`;
+    el.innerHTML = `${mediaHTML}${docsHTML}<div class="post-body"><div class="post-head"><time class="post-date" datetime="${post.date}">${dt}</time><div class="post-actions"><button class="act-btn btn-copy" data-pid="${post.id}" title="Скопировать ссылку"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></button></div></div><div class="post-text">${textHTML}</div></div><div class="post-foot">${views}${fwds}<a class="post-link-orig" href="${attr(post.url)}" target="_blank" rel="noopener">Оригинал ↗</a></div>`;
     return el;
   }
 
@@ -279,6 +294,26 @@
   function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
   function attr(s){return s.replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
   function escRE(s){return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}
+  function toTelegramEmbedUrl(postUrl){
+    try {
+      const u = new URL(postUrl);
+      const host = u.hostname.toLowerCase();
+      if (host !== 't.me' && host !== 'telegram.me') return null;
+      const parts = u.pathname.split('/').filter(Boolean);
+      let channel = '', postId = '';
+      if (parts[0] === 's' && parts.length >= 3) {
+        channel = parts[1];
+        postId = parts[2];
+      } else if (parts.length >= 2) {
+        channel = parts[0];
+        postId = parts[1];
+      }
+      if (!channel || !/^\d+$/.test(postId)) return null;
+      return `https://t.me/${channel}/${postId}?embed=1&mode=tme`;
+    } catch {
+      return null;
+    }
+  }
 
   // ========== SEARCH ==========
   function onSearch(){
@@ -301,7 +336,8 @@
   dom.searchInput.addEventListener('input',()=>{clearTimeout(sTO);sTO=setTimeout(onSearch,250)});
   dom.searchClear.addEventListener('click',()=>{dom.searchInput.value='';onSearch();dom.searchInput.focus()});
   document.addEventListener('click',e=>{
-    const th=e.target.closest('.media-thumb');if(th&&!th.classList.contains('media-broken')){openLB(th.dataset.pid,th.dataset.idx);return}
+    const th=e.target.closest('.media-thumb[data-pid]');
+    if(th&&!th.classList.contains('media-broken')){openLB(th.dataset.pid,th.dataset.idx);return}
     const cp=e.target.closest('.btn-copy');if(cp){copyLink(cp.dataset.pid);return}
     const tg=e.target.closest('.htag');if(tg){dom.searchInput.value=tg.dataset.tag;onSearch();window.scrollTo({top:0,behavior:'smooth'});return}
   });
@@ -313,3 +349,21 @@
 
   init();
 })();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

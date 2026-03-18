@@ -222,7 +222,28 @@ def extract_media(msg, post_url: str, channel: str) -> list[dict]:
                 elif len(pp) == 3: duration = int(pp[0]) * 3600 + int(pp[1]) * 60 + int(pp[2])
             except ValueError:
                 pass
-        media.append({"type": "video", "thumbnail": thumb, "duration": duration, "post_url": post_url})
+        # Прямой URL видеофайла из тега <video>
+        video_url = ""
+        vid_el = vw.select_one("video")
+        if vid_el:
+            # src может быть в src или data-src (lazy loading / blurred)
+            video_url = vid_el.get("src", "") or vid_el.get("data-src", "")
+            if video_url.startswith("//"):
+                video_url = "https:" + video_url
+            # poster из <video> — надёжнее чем background-image
+            poster = vid_el.get("poster", "") or vid_el.get("data-poster", "")
+            if poster:
+                if poster.startswith("//"):
+                    poster = "https:" + poster
+                thumb = poster
+        media.append({
+            "type": "video",
+            "url": video_url,
+            "thumbnail": thumb,
+            "duration": duration,
+            "post_url": post_url,
+            "video_available": bool(video_url),
+        })
 
     for dw in clean.select(".tgme_widget_message_document_wrap"):
         te = dw.select_one(".tgme_widget_message_document_title")
@@ -242,7 +263,25 @@ def extract_media(msg, post_url: str, channel: str) -> list[dict]:
 
     for rw in clean.select(".tgme_widget_message_roundvideo"):
         t2 = extract_bg_url(rw.get("style", "")) or ""
-        media.append({"type": "video", "thumbnail": t2, "duration": None, "post_url": post_url})
+        video_url = ""
+        vid_el = rw.select_one("video")
+        if vid_el:
+            video_url = vid_el.get("src", "") or vid_el.get("data-src", "")
+            if video_url.startswith("//"):
+                video_url = "https:" + video_url
+            poster = vid_el.get("poster", "") or vid_el.get("data-poster", "")
+            if poster:
+                if poster.startswith("//"):
+                    poster = "https:" + poster
+                t2 = poster
+        media.append({
+            "type": "video",
+            "url": video_url,
+            "thumbnail": t2,
+            "duration": None,
+            "post_url": post_url,
+            "video_available": bool(video_url),
+        })
 
     for si in clean.select(".tgme_widget_message_sticker_wrap img"):
         src = si.get("data-src") or si.get("src", "")
@@ -257,6 +296,16 @@ def extract_media(msg, post_url: str, channel: str) -> list[dict]:
                 media.append({"type": "photo", "url": u})
 
     return media
+
+
+def normalize_video_flags(posts: list[dict]) -> list[dict]:
+    """Гарантирует, что у каждого video есть video_available, согласованный с url."""
+    for post in posts:
+        media = post.get("media") or []
+        for m in media:
+            if m.get("type") == "video":
+                m["video_available"] = bool(m.get("url"))
+    return posts
 
 
 # ============================================================
@@ -360,6 +409,9 @@ def is_post_broken(post: dict) -> tuple[bool, str]:
         if m.get("type") == "video" and not m.get("post_url"):
             reasons.append("битое видео")
             break
+        if m.get("type") == "video" and not m.get("url"):
+            reasons.append("видео без url")
+            break
         if m.get("type") == "document" and (not m.get("url") or m["url"] == "#"):
             reasons.append("битый документ")
             break
@@ -449,6 +501,15 @@ def repair_posts(channel: str, posts: list[dict], repair_all: bool = False) -> l
                             for om in (old.get("media") or []):
                                 if om.get("type") == "video" and not om.get("post_url"):
                                     om["post_url"] = nm["post_url"]
+                        # Обновляем url у видео без прямой ссылки
+                        if nm.get("type") == "video" and nm.get("url"):
+                            for om in (old.get("media") or []):
+                                if om.get("type") == "video" and not om.get("url"):
+                                    om["url"] = nm["url"]
+                                    om["video_available"] = True
+                                    if nm.get("thumbnail") and not om.get("thumbnail"):
+                                        om["thumbnail"] = nm["thumbnail"]
+                                    break
                         if nm.get("type") == "document" and nm.get("url") and nm["url"] != "#":
                             for om in (old.get("media") or []):
                                 if om.get("type") == "document" and (not om.get("url") or om["url"] == "#"):
@@ -486,6 +547,7 @@ def repair_posts(channel: str, posts: list[dict], repair_all: bool = False) -> l
     date_removed = before_len - len(posts_map)
 
     result = sorted(posts_map.values(), key=lambda p: p["id"], reverse=True)
+    result = normalize_video_flags(result)
     print(f"\n📊 Итого: починено {fixed} | удалено {deleted} | ошибок {errors} | без даты удалено {date_removed} | всего {len(result)}")
     return result
 
@@ -669,6 +731,7 @@ def merge(new_posts, path):
 
     for p in mm.values(): p.pop("_truncated", None)
     merged = sorted(mm.values(), key=lambda p: p["id"], reverse=True)
+    merged = normalize_video_flags(merged)
     print(f"✅ Новых: {added} | Удалено без дат: {removed} | Всего: {len(merged)}")
     return merged
 
