@@ -108,6 +108,12 @@ def sanitize_html(element) -> str:
             if tn == "br":
                 parts.append("<br>")
             elif tn in ALLOWED_TAGS:
+                # Telegram оборачивает эмодзи в <i class="emoji"> —
+                # не нужно делать их курсивом, просто выводим содержимое
+                child_classes = child.get("class", [])
+                if tn in ("i", "em") and "emoji" in child_classes:
+                    parts.append(sanitize_html(child))
+                    continue
                 attrs = ""
                 if tn == "a":
                     href = child.get("href", "")
@@ -362,16 +368,22 @@ def fetch_post_via_embed(channel: str, post_id: int) -> dict | None:
     fwd_el = msg.select_one(".tgme_widget_message_forwards")
     forwards = parse_views(fwd_el.text) if fwd_el else None
 
-    # Реакции
+    # Реакции — реальная структура Telegram:
+    # <span class="tgme_reaction"><i class="emoji"><b>❤</b></i>61</span>
     reactions = []
-    for react_el in msg.select(".tgme_widget_message_reaction"):
-        emoji_el = react_el.select_one(".tgme_widget_message_reaction_emoji")
-        count_el = react_el.select_one(".tgme_widget_message_reaction_count")
-        if emoji_el and count_el:
-            emoji = emoji_el.get_text().strip()
-            count = parse_views(count_el.get_text()) or 0
-            if emoji and count:
-                reactions.append({"emoji": emoji, "count": count})
+    for react_el in msg.select(".tgme_reaction"):
+        emoji_tag = react_el.select_one("i.emoji")
+        if not emoji_tag:
+            continue
+        emoji = emoji_tag.get_text().strip()
+        # Счётчик — текстовый узел после <i>, не внутри тега
+        count_text = ""
+        for child in react_el.children:
+            if isinstance(child, NavigableString):
+                count_text += str(child).strip()
+        count = parse_views(count_text) or 0
+        if emoji and count:
+            reactions.append({"emoji": emoji, "count": count})
 
     # Медиа
     media = extract_media(msg, post_url, channel)
@@ -596,16 +608,21 @@ def parse_single_message(msg, channel: str) -> dict | None:
     fwd_el = msg.select_one(".tgme_widget_message_forwards")
     forwards = parse_views(fwd_el.text) if fwd_el else None
 
-    # Реакции
+    # Реакции — реальная структура Telegram:
+    # <span class="tgme_reaction"><i class="emoji"><b>❤</b></i>61</span>
     reactions = []
-    for react_el in msg.select(".tgme_widget_message_reaction"):
-        emoji_el = react_el.select_one(".tgme_widget_message_reaction_emoji")
-        count_el = react_el.select_one(".tgme_widget_message_reaction_count")
-        if emoji_el and count_el:
-            emoji = emoji_el.get_text().strip()
-            count = parse_views(count_el.get_text()) or 0
-            if emoji and count:
-                reactions.append({"emoji": emoji, "count": count})
+    for react_el in msg.select(".tgme_reaction"):
+        emoji_tag = react_el.select_one("i.emoji")
+        if not emoji_tag:
+            continue
+        emoji = emoji_tag.get_text().strip()
+        count_text = ""
+        for child in react_el.children:
+            if isinstance(child, NavigableString):
+                count_text += str(child).strip()
+        count = parse_views(count_text) or 0
+        if emoji and count:
+            reactions.append({"emoji": emoji, "count": count})
 
     media = extract_media(msg, post_url, channel)
 
