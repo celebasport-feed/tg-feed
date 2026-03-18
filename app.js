@@ -19,7 +19,7 @@
 
   const dom = {};
   ['feed','searchInput','searchClear','searchStatus','emptyState','scrollLoader',
-   'lightbox','lbImg','lbClose','lbPrev','lbNext','lbCounter','toast',
+   'lightbox','lbImg','lbVideo','lbFallback','lbFallbackImg','lbFallbackLink','lbClose','lbPrev','lbNext','lbCounter','toast',
    'subscriberCount','channelAvatar',
    'calendarBtn','calendarDropdown','calPrev','calNext','calTitle','calGrid',
    'dateChip','dateChipText','dateChipClear'
@@ -27,6 +27,7 @@
 
   const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
   const PLAY_SVG = `<svg class="vp-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+  const EXPAND_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>`;
 
   // ========== INIT ==========
   async function init() {
@@ -208,41 +209,46 @@
     return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
   }
 
+  function getGalleryMedia(post) {
+    return (post.media || [])
+      .filter(m => m && (m.type === 'photo' || m.type === 'video'))
+      .map((m, mediaIdx) => ({
+        ...m,
+        kind: m.type === 'photo' ? 'photo' : 'video',
+        mediaIdx,
+        post_url: m.post_url || post.url
+      }));
+  }
+
+  function mediaOpenControl(pid, mediaIdx) {
+    return `<span class="media-open" data-pid="${pid}" data-media-idx="${mediaIdx}" role="button" tabindex="0" aria-label="Открыть галерею">${EXPAND_SVG}</span>`;
+  }
+
   // ========== POST CARD ==========
   function card(post) {
     const el = document.createElement('article');
     el.className = 'post-card';
     el.id = `post-${post.id}`;
 
-    const photos = (post.media||[]).filter(m=>m.type==='photo');
-    const videos = (post.media||[]).filter(m=>m.type==='video');
     const docs   = (post.media||[]).filter(m=>m.type==='document');
-
-    // Для видео без прямого URL нельзя надёжно понять, дубликат это или отдельный ролик.
-    // Поэтому сохраняем все записи как есть, чтобы не терять второй/третий ролик в альбомах.
-    const uniqueVideos = videos.map(v => ({...v, post_url: v.post_url || post.url}));
-
-    // Строим единую медиа-сетку: фото + видео вместе
-    const allMedia = [
-      ...photos.map((m, pi) => ({kind:'photo', _photoIdx: pi, ...m})),
-      ...uniqueVideos.map(v => ({kind:'video', ...v}))
-    ];
+    const allMedia = getGalleryMedia(post);
 
     let mediaHTML = '';
     if (allMedia.length > 0) {
       const sc = Math.min(allMedia.length, 3);
       const items = allMedia.slice(0, sc).map((m, i) => {
         let ov = '';
-        if (i === sc-1 && allMedia.length > 3) ov = `<div class="media-more">+${allMedia.length-3}</div>`;
+        if (i === sc-1 && allMedia.length > 3) ov = `<span class="media-more" data-pid="${post.id}" data-media-idx="${m.mediaIdx}" role="button" tabindex="0" aria-label="Открыть галерею, ещё ${allMedia.length-3}">+${allMedia.length-3}</span>`;
         if (m.kind === 'photo') {
-          return `<div class="media-thumb" data-pid="${post.id}" data-idx="${m._photoIdx}"><img src="${attr(m.url)}" alt="" loading="lazy" onerror="this.parentElement.classList.add('media-broken')">${ov}</div>`;
+          return `<div class="media-thumb" data-pid="${post.id}" data-media-idx="${m.mediaIdx}"><img src="${attr(m.url)}" alt="" loading="lazy" onerror="this.parentElement.classList.add('media-broken')">${ov}</div>`;
         } else {
           const dur = m.duration ? `<span class="vp-dur">${fmtDur(m.duration)}</span>` : '';
+          const openCtl = mediaOpenControl(post.id, m.mediaIdx);
 
           // При наличии прямого URL показываем само видео с autoplay (muted).
           if (m.url) {
             const poster = m.thumbnail ? `poster="${attr(m.thumbnail)}"` : '';
-            return `<div class="media-thumb media-video-native">${dur ? `<div class="vp-dur-wrap">${dur}</div>` : ''}<video src="${attr(m.url)}" ${poster} autoplay muted playsinline loop controls preload="metadata" onerror="this.closest('.media-thumb').classList.add('media-broken')"></video>${ov}</div>`;
+            return `<div class="media-thumb media-video-native" data-pid="${post.id}" data-media-idx="${m.mediaIdx}">${openCtl}${dur ? `<div class="vp-dur-wrap">${dur}</div>` : ''}<video src="${attr(m.url)}" ${poster} autoplay muted playsinline loop controls preload="metadata" onerror="this.closest('.media-thumb').classList.add('media-broken')"></video>${ov}</div>`;
           }
 
           // Если прямого URL нет (часто у blur/ограниченных видео), показываем fallback-блок,
@@ -250,7 +256,7 @@
           const inner = m.thumbnail
             ? `<img src="${attr(m.thumbnail)}" alt="" loading="lazy" onerror="this.style.display='none'"><div class="vp-overlay">${PLAY_SVG}${dur}</div>`
             : `<div class="vp-placeholder">${PLAY_SVG}${dur}<span class="vp-label">Видео</span></div>`;
-          return `<a class="media-thumb media-video" href="${attr(m.post_url || post.url)}" target="_blank" rel="noopener">${inner}${ov}</a>`;
+          return `<a class="media-thumb media-video" href="${attr(m.post_url || post.url)}" target="_blank" rel="noopener" data-pid="${post.id}" data-media-idx="${m.mediaIdx}">${openCtl}${inner}${ov}</a>`;
         }
       }).join('');
       mediaHTML = `<div class="post-media" data-count="${sc}">${items}</div>`;
@@ -329,10 +335,59 @@
   }
 
   // ========== LIGHTBOX ==========
-  let lbP=[],lbI=0;
-  function openLB(pid,idx){const p=allPosts.find(x=>x.id===Number(pid));if(!p||!p.media)return;lbP=p.media.filter(m=>m.type==='photo');if(!lbP.length)return;lbI=Number(idx)||0;showLB();dom.lightbox.classList.add('open');document.body.style.overflow='hidden'}
-  function closeLB(){dom.lightbox.classList.remove('open');document.body.style.overflow=''}
-  function showLB(){const m=lbP[lbI];dom.lbImg.src=m.url;dom.lbCounter.textContent=lbP.length>1?`${lbI+1} / ${lbP.length}`:'';dom.lbPrev.style.display=lbP.length>1?'':'none';dom.lbNext.style.display=lbP.length>1?'':'none'}
+  let lbItems=[],lbI=0;
+  function resetLBMedia(){
+    dom.lbImg.style.display='none';
+    dom.lbImg.removeAttribute('src');
+    dom.lbVideo.style.display='none';
+    dom.lbVideo.pause();
+    dom.lbVideo.removeAttribute('src');
+    dom.lbVideo.removeAttribute('poster');
+    dom.lbVideo.load();
+    dom.lbFallback.style.display='none';
+    dom.lbFallbackImg.style.display='none';
+    dom.lbFallbackImg.removeAttribute('src');
+    dom.lbFallbackLink.href='#';
+  }
+  function openLB(pid,idx){
+    const p=allPosts.find(x=>x.id===Number(pid));
+    if(!p||!p.media)return;
+    lbItems=getGalleryMedia(p);
+    if(!lbItems.length)return;
+    lbI=Math.max(0,Math.min(Number(idx)||0,lbItems.length-1));
+    showLB();
+    dom.lightbox.classList.add('open');
+    document.body.style.overflow='hidden';
+  }
+  function closeLB(){
+    resetLBMedia();
+    dom.lightbox.classList.remove('open');
+    document.body.style.overflow='';
+  }
+  function showLB(){
+    const m=lbItems[lbI];
+    if(!m)return;
+    resetLBMedia();
+    if(m.kind==='photo'){
+      dom.lbImg.src=m.url;
+      dom.lbImg.style.display='';
+    } else if(m.url){
+      dom.lbVideo.src=m.url;
+      if(m.thumbnail) dom.lbVideo.poster=m.thumbnail;
+      dom.lbVideo.style.display='';
+      dom.lbVideo.play().catch(()=>{});
+    } else {
+      if(m.thumbnail){
+        dom.lbFallbackImg.src=m.thumbnail;
+        dom.lbFallbackImg.style.display='';
+      }
+      dom.lbFallbackLink.href=m.post_url || '#';
+      dom.lbFallback.style.display='';
+    }
+    dom.lbCounter.textContent=lbItems.length>1?`${lbI+1} / ${lbItems.length}`:'';
+    dom.lbPrev.style.display=lbItems.length>1?'':'none';
+    dom.lbNext.style.display=lbItems.length>1?'':'none';
+  }
   function copyLink(pid){navigator.clipboard.writeText(`${location.origin}${location.pathname}#post-${pid}`).then(toast).catch(toast)}
   function toast(){dom.toast.classList.add('show');setTimeout(()=>dom.toast.classList.remove('show'),1800)}
   function scrollToHash(){const h=location.hash;if(!h||!h.startsWith('#post-'))return;while(shown<filtered.length){if(document.getElementById(h.slice(1)))break;more()}setTimeout(()=>{const el=document.getElementById(h.slice(1));if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('highlighted');setTimeout(()=>el.classList.remove('highlighted'),3000)}},150)}
@@ -342,23 +397,32 @@
   dom.searchInput.addEventListener('input',()=>{clearTimeout(sTO);sTO=setTimeout(onSearch,250)});
   dom.searchClear.addEventListener('click',()=>{dom.searchInput.value='';onSearch();dom.searchInput.focus()});
   document.addEventListener('click',e=>{
+    const mediaAction=e.target.closest('.media-open,.media-more');
+    if(mediaAction&&mediaAction.dataset.pid){e.preventDefault();openLB(mediaAction.dataset.pid,mediaAction.dataset.mediaIdx);return}
     const th=e.target.closest('.media-thumb[data-pid]');
-    if(th&&!th.classList.contains('media-broken')){openLB(th.dataset.pid,th.dataset.idx);return}
+    if(th&&!th.classList.contains('media-broken')){
+      if(th.classList.contains('media-video-native') || th.classList.contains('media-video')) return;
+      openLB(th.dataset.pid,th.dataset.mediaIdx);
+      return;
+    }
     const cp=e.target.closest('.btn-copy');if(cp){copyLink(cp.dataset.pid);return}
     const tg=e.target.closest('.htag');if(tg){dom.searchInput.value=tg.dataset.tag;onSearch();window.scrollTo({top:0,behavior:'smooth'});return}
   });
   dom.lbClose.addEventListener('click',closeLB);
-  dom.lbPrev.addEventListener('click',()=>{lbI=(lbI-1+lbP.length)%lbP.length;showLB()});
-  dom.lbNext.addEventListener('click',()=>{lbI=(lbI+1)%lbP.length;showLB()});
+  dom.lbPrev.addEventListener('click',()=>{lbI=(lbI-1+lbItems.length)%lbItems.length;showLB()});
+  dom.lbNext.addEventListener('click',()=>{lbI=(lbI+1)%lbItems.length;showLB()});
   dom.lightbox.addEventListener('click',e=>{if(e.target===dom.lightbox)closeLB()});
-  document.addEventListener('keydown',e=>{if(!dom.lightbox.classList.contains('open'))return;if(e.key==='Escape')closeLB();if(e.key==='ArrowLeft'){lbI=(lbI-1+lbP.length)%lbP.length;showLB()}if(e.key==='ArrowRight'){lbI=(lbI+1)%lbP.length;showLB()}});
+  document.addEventListener('keydown',e=>{
+    const mediaAction=document.activeElement&&document.activeElement.closest?document.activeElement.closest('.media-open,.media-more'):null;
+    if(mediaAction&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openLB(mediaAction.dataset.pid,mediaAction.dataset.mediaIdx);return}
+    if(!dom.lightbox.classList.contains('open'))return;
+    if(e.key==='Escape')closeLB();
+    if(e.key==='ArrowLeft'){lbI=(lbI-1+lbItems.length)%lbItems.length;showLB()}
+    if(e.key==='ArrowRight'){lbI=(lbI+1)%lbItems.length;showLB()}
+  });
 
   init();
 })();
-
-
-
-
 
 
 
