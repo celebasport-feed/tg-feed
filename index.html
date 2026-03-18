@@ -27,19 +27,20 @@
             <span class="channel-handle">@celebasport · <span id="subscriberCount">…</span></span>
           </div>
         </div>
-        <div class="header-actions">
-          <a class="btn-secondary" href="https://heroic-horse-64b078.netlify.app/" target="_blank" rel="noopener" data-miniapp-open>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="M12 3v18"/><circle cx="12" cy="12" r="9" opacity=".22" fill="currentColor" stroke="none"/></svg>
-            <span>Обзоры медиа</span>
-          </a>
-          <a class="btn-tg" href="https://t.me/celebasport" target="_blank" rel="noopener">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm5.53 8.16l-1.83 8.63c-.14.62-.5.77-.99.48l-2.75-2.03-1.33 1.28c-.15.15-.27.27-.55.27l.2-2.8 5.1-4.6c.22-.2-.05-.3-.34-.13L8.4 13.4l-2.7-.84c-.59-.18-.6-.59.12-.87l10.56-4.07c.49-.18.92.12.76.87l-.01-.33z"/></svg>
-            <span class="btn-tg-label">Telegram</span>
-          </a>
-        </div>
+        <a class="btn-tg" href="https://t.me/celebasport" target="_blank" rel="noopener">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm5.53 8.16l-1.83 8.63c-.14.62-.5.77-.99.48l-2.75-2.03-1.33 1.28c-.15.15-.27.27-.55.27l.2-2.8 5.1-4.6c.22-.2-.05-.3-.34-.13L8.4 13.4l-2.7-.84c-.59-.18-.6-.59.12-.87l10.56-4.07c.49-.18.92.12.76.87l-.01-.33z"/></svg>
+          <span class="btn-tg-label">Telegram</span>
+        </a>
       </div>
       <p class="channel-desc">Крупнейший канал про маркетинг в спорте. Победитель премий «Спортс» и Marspo. Авторы: основатель <a href="https://celeba-sport.ru" target="_blank">celeba-sport.ru</a> + топы индустрии.</p>
     </header>
+
+    <div class="miniapps-bar" aria-label="Мини-приложения">
+      <a class="miniapp-chip" href="https://heroic-horse-64b078.netlify.app/" target="_blank" rel="noopener" data-miniapp-open>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="M12 3v18"/><circle cx="12" cy="12" r="9" opacity=".22" fill="currentColor" stroke="none"/></svg>
+        <span>Обзоры медиа</span>
+      </a>
+    </div>
 
     <!-- ПОИСК + КАЛЕНДАРЬ -->
     <div class="search-wrap">
@@ -102,24 +103,19 @@
     <div class="lb-counter" id="lbCounter"></div>
   </div>
   <div class="miniapp-modal" id="miniappModal" aria-hidden="true">
-    <div class="miniapp-shell" role="dialog" aria-modal="true" aria-labelledby="miniappTitle">
-      <div class="miniapp-head">
-        <div class="miniapp-copy">
-          <p class="miniapp-eyebrow">Встроенный режим</p>
-          <h2 class="miniapp-title" id="miniappTitle">Обзоры медиа</h2>
-        </div>
-        <div class="miniapp-actions">
-          <a class="miniapp-open-window" id="miniappOpenWindow" href="https://heroic-horse-64b078.netlify.app/" target="_blank" rel="noopener">Открыть в новом окне ↗</a>
-          <button class="miniapp-close" id="miniappClose" type="button" aria-label="Закрыть">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
+    <div class="miniapp-shell" role="dialog" aria-modal="true" aria-label="Обзоры медиа">
+      <div class="miniapp-tools">
+        <a class="miniapp-tool" id="miniappOpenWindow" href="https://heroic-horse-64b078.netlify.app/" target="_blank" rel="noopener" aria-label="Открыть в новом окне">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M10 14 20 4"/><path d="M20 14v6H4V4h6"/></svg>
+        </a>
+        <button class="miniapp-tool" id="miniappClose" type="button" aria-label="Закрыть">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
       <div class="miniapp-body">
         <div class="miniapp-status" id="miniappStatus">
           <div class="miniapp-spinner" aria-hidden="true"></div>
-          <p class="miniapp-status-title">Загружаем обзоры медиа…</p>
-          <p class="miniapp-status-text" id="miniappStatusText">Если встроенный режим не откроется, воспользуйтесь кнопкой «Открыть в новом окне».</p>
+          <p class="miniapp-status-text" id="miniappStatusText">Загрузка… Если что-то блокирует iframe, откройте в новом окне.</p>
         </div>
         <iframe class="miniapp-frame" id="miniappFrame" title="Обзоры медиа" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
       </div>
