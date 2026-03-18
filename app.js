@@ -370,19 +370,19 @@
     resetLBMedia();
     if(m.kind==='photo'){
       dom.lbImg.src=m.url;
-      dom.lbImg.style.display='';
+      dom.lbImg.style.display='block';
     } else if(m.url){
       dom.lbVideo.src=m.url;
       if(m.thumbnail) dom.lbVideo.poster=m.thumbnail;
-      dom.lbVideo.style.display='';
+      dom.lbVideo.style.display='block';
       dom.lbVideo.play().catch(()=>{});
     } else {
       if(m.thumbnail){
         dom.lbFallbackImg.src=m.thumbnail;
-        dom.lbFallbackImg.style.display='';
+        dom.lbFallbackImg.style.display='block';
       }
       dom.lbFallbackLink.href=m.post_url || '#';
-      dom.lbFallback.style.display='';
+      dom.lbFallback.style.display='block';
     }
     dom.lbCounter.textContent=lbItems.length>1?`${lbI+1} / ${lbItems.length}`:'';
     dom.lbPrev.style.display=lbItems.length>1?'':'none';
@@ -423,6 +423,7 @@
 
   init();
 })();
+
 
 
 
