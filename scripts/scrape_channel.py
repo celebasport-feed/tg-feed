@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """
-scrape_channel.py — v10
+scrape_channel.py — v11
 Добавлено:
 - --repair : проходит по ВСЕМ постам в posts.json,
   находит битые (обрезанный текст, нет даты, нет медиа)
   и дозагружает каждый через embed-страницу.
+- В обычном режиме освежает media URL у части старых постов,
+  чтобы протухшие ссылки Telegram автоматически подменялись новыми.
   
 Использование:
   python scripts/scrape_channel.py                    # обычное обновление
   python scripts/scrape_channel.py --repair           # починить битые посты
   python scripts/scrape_channel.py --repair --all     # перепроверить ВСЕ посты
+  python scripts/scrape_channel.py --refresh-media-limit 20
   python scripts/scrape_channel.py --pages 50         # ретроспектива
   python scripts/scrape_channel.py --fresh --pages 5  # с нуля
 """
@@ -29,6 +32,7 @@ OUTPUT_CHANNEL = Path(__file__).resolve().parent.parent / "data" / "channel.json
 DEFAULT_PAGES  = 5
 DELAY          = 1.5
 DELAY_EMBED    = 0.8
+DEFAULT_MEDIA_REFRESH_LIMIT = 20
 
 HEADERS = {
     "User-Agent": (
@@ -319,6 +323,60 @@ def normalize_video_flags(posts: list[dict]) -> list[dict]:
     return posts
 
 
+def media_quality_score(media: list[dict] | None) -> int:
+    """Грубая оценка полноты media-массива: url важнее thumbnail/post_url."""
+    score = 0
+    for item in media or []:
+        if item.get("url"):
+            score += 2
+        if item.get("thumbnail"):
+            score += 1
+        if item.get("post_url"):
+            score += 1
+        if item.get("filename"):
+            score += 1
+    return score
+
+
+def media_fingerprint(media: list[dict] | None) -> tuple:
+    """Сигнатура медиа для определения реальных изменений URL/порядка/метаданных."""
+    return tuple(
+        (
+            item.get("type", ""),
+            item.get("url", ""),
+            item.get("thumbnail", ""),
+            item.get("post_url", ""),
+            item.get("filename", ""),
+            item.get("size"),
+            item.get("duration"),
+        )
+        for item in (media or [])
+    )
+
+
+def should_replace_media(old_media: list[dict] | None, new_media: list[dict] | None) -> bool:
+    """
+    Нужно ли заменять старый media-массив новым.
+    Меняем, если:
+    - новых медиа больше
+    - медиа отличаются и новый набор не беднее старого
+    """
+    old_media = old_media or []
+    new_media = new_media or []
+
+    if not new_media:
+        return False
+    if not old_media:
+        return True
+    if len(new_media) > len(old_media):
+        return True
+    if len(new_media) < len(old_media):
+        return False
+    if media_fingerprint(new_media) == media_fingerprint(old_media):
+        return False
+    return media_quality_score(new_media) >= media_quality_score(old_media)
+
+
 # ============================================================
 # ПАРСИНГ EMBED-СТРАНИЦЫ ОДНОГО ПОСТА (надёжный источник)
 # ============================================================
@@ -520,8 +578,11 @@ def repair_posts(channel: str, posts: list[dict], repair_all: bool = False) -> l
             if embed_data.get("media"):
                 old_media_count = len(old.get("media") or [])
                 new_media_count = len(embed_data["media"])
-                if new_media_count > old_media_count:
-                    changes.append(f"медиа: {old_media_count} → {new_media_count}")
+                if should_replace_media(old.get("media"), embed_data["media"]):
+                    if new_media_count != old_media_count:
+                        changes.append(f"медиа: {old_media_count} → {new_media_count}")
+                    else:
+                        changes.append("обновлены media url")
                     old["media"] = embed_data["media"]
                 elif old_media_count > 0:
                     # Обновляем post_url у видео и url у документов
@@ -735,7 +796,7 @@ def scrape(channel, max_pages):
                     post["text"] = embed["text"]; post["html"] = embed.get("html", "")
                 if is_valid_date(embed.get("date", "")):
                     post["date"] = embed["date"]
-                if embed.get("media") and len(embed["media"]) > len(post.get("media", [])):
+                if should_replace_media(post.get("media"), embed.get("media")):
                     post["media"] = embed["media"]
             post.pop("_truncated", None)
             time.sleep(DELAY_EMBED)
@@ -772,7 +833,7 @@ def merge(new_posts, path):
             if p.get("views"):    o["views"] = p["views"]
             if p.get("forwards"): o["forwards"] = p["forwards"]
             if p.get("reactions"): o["reactions"] = p["reactions"]
-            if p.get("media") and (not o.get("media") or len(p["media"]) > len(o.get("media",[]))):
+            if should_replace_media(o.get("media"), p.get("media")):
                 o["media"] = p["media"]
 
     before_count = len(mm)
@@ -786,6 +847,70 @@ def merge(new_posts, path):
     return merged
 
 
+def refresh_recent_media(channel: str, posts: list[dict], skip_ids=None, limit: int = DEFAULT_MEDIA_REFRESH_LIMIT) -> list[dict]:
+    """
+    После обычного обновления освежает media URL у части старых постов.
+    Это нужно, потому что Telegram может начать отдавать новые CDN-URL
+    для того же набора фото/видео, а старые ссылки в JSON со временем тухнут.
+    """
+    if limit <= 0:
+        return posts
+
+    skip_ids = set(skip_ids or [])
+    candidates = []
+    for post in posts:
+        if post["id"] in skip_ids:
+            continue
+        if post.get("media"):
+            candidates.append(post)
+        if len(candidates) >= limit:
+            break
+
+    if not candidates:
+        print("🔄 Старых постов для media refresh не найдено")
+        return posts
+
+    refreshed = 0
+    errors = 0
+    print(f"\n🔄 Освежаем media URL у {len(candidates)} старых постов...")
+
+    for idx, post in enumerate(candidates, 1):
+        pid = post["id"]
+        try:
+            embed_data = fetch_post_via_embed(channel, pid)
+            if embed_data is None:
+                print(f"   {idx}/{len(candidates)}: #{pid} — пост недоступен")
+            elif should_replace_media(post.get("media"), embed_data.get("media")):
+                post["media"] = embed_data["media"]
+                refreshed += 1
+                print(f"   {idx}/{len(candidates)}: #{pid} — обновлены media url")
+            else:
+                print(f"   {idx}/{len(candidates)}: #{pid} — без изменений")
+
+            if embed_data:
+                if embed_data.get("views"):
+                    post["views"] = embed_data["views"]
+                if embed_data.get("forwards"):
+                    post["forwards"] = embed_data["forwards"]
+                if embed_data.get("reactions"):
+                    post["reactions"] = embed_data["reactions"]
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 429:
+                print(f"   {idx}/{len(candidates)}: #{pid} — 429, жду 30 сек...")
+                time.sleep(30)
+            else:
+                print(f"   {idx}/{len(candidates)}: #{pid} — HTTP {e.response.status_code if e.response else '?'}")
+            errors += 1
+        except Exception as e:
+            print(f"   {idx}/{len(candidates)}: #{pid} — ошибка: {e}")
+            errors += 1
+
+        time.sleep(DELAY_EMBED)
+
+    print(f"✅ Media refresh: обновлено {refreshed} | ошибок {errors}")
+    return normalize_video_flags(posts)
+
+
 # ============================================================
 # MAIN
 # ============================================================
@@ -794,6 +919,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--pages", type=int, default=DEFAULT_PAGES)
     parser.add_argument("--fresh", action="store_true")
+    parser.add_argument("--refresh-media-limit", type=int, default=DEFAULT_MEDIA_REFRESH_LIMIT,
+                        help="В обычном режиме: сколько старых постов с медиа дополнительно перепроверять через embed")
     parser.add_argument("--repair", action="store_true",
                         help="Починить битые посты в posts.json через embed")
     parser.add_argument("--all", action="store_true",
@@ -833,6 +960,8 @@ def main():
 
     OUTPUT_POSTS.parent.mkdir(parents=True, exist_ok=True)
     merged = merge(posts, OUTPUT_POSTS)
+    fresh_ids = {p["id"] for p in posts}
+    merged = refresh_recent_media(CHANNEL, merged, skip_ids=fresh_ids, limit=args.refresh_media_limit)
     OUTPUT_POSTS.write_text(json.dumps(merged, ensure_ascii=False, indent=2), "utf-8")
     print(f"💾 → {OUTPUT_POSTS}")
 
