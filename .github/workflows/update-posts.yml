@@ -2,13 +2,18 @@ name: Update Posts
 
 on:
   schedule:
-    - cron: '0 */3 * * *'
+    - cron: '*/15 * * * *'
+    - cron: '5 */3 * * *'
   workflow_dispatch:
     inputs:
       pages:
         description: 'Страниц (5=~100 постов, 50=~1000)'
         required: false
         default: '5'
+      refresh_media_limit:
+        description: 'Сколько старых постов с медиа дополнительно освежать'
+        required: false
+        default: '20'
       fresh:
         description: 'Начать с нуля (удалить posts.json)?'
         required: false
@@ -22,6 +27,10 @@ on:
 
 permissions:
   contents: write
+
+concurrency:
+  group: update-posts
+  cancel-in-progress: false
 
 jobs:
   scrape:
@@ -38,15 +47,35 @@ jobs:
 
       - name: Run scraper
         run: |
-          PAGES="${{ github.event.inputs.pages || '5' }}"
+          PAGES="${{ github.event.inputs.pages || '' }}"
+          REFRESH_MEDIA_LIMIT="${{ github.event.inputs.refresh_media_limit || '' }}"
           FRESH="${{ github.event.inputs.fresh }}"
           REPAIR="${{ github.event.inputs.repair }}"
+          SCHEDULE="${{ github.event.schedule }}"
 
           if [ "$REPAIR" = "true" ]; then
             echo "🔧 Режим REPAIR — починка битых постов"
             python scripts/scrape_channel.py --repair
           else
-            CMD="python scripts/scrape_channel.py --pages $PAGES"
+            if [ -z "$PAGES" ]; then
+              PAGES="5"
+            fi
+
+            if [ -z "$REFRESH_MEDIA_LIMIT" ]; then
+              REFRESH_MEDIA_LIMIT="20"
+            fi
+
+            if [ "$SCHEDULE" = "*/15 * * * *" ]; then
+              PAGES="2"
+              REFRESH_MEDIA_LIMIT="3"
+              echo "⚡ Частый режим: новые посты каждые 15 минут"
+            elif [ "$SCHEDULE" = "5 */3 * * *" ]; then
+              PAGES="5"
+              REFRESH_MEDIA_LIMIT="20"
+              echo "🔄 Глубокий refresh: старые медиа каждые 3 часа"
+            fi
+
+            CMD="python scripts/scrape_channel.py --pages $PAGES --refresh-media-limit $REFRESH_MEDIA_LIMIT"
             if [ "$FRESH" = "true" ]; then CMD="$CMD --fresh"; fi
             echo "Running: $CMD"
             $CMD
