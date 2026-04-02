@@ -18,16 +18,16 @@
         "video_available": true
       }
     ],
-    "views": 821,
+    "views": 882,
     "forwards": null,
     "reactions": [
       {
         "emoji": "❤️",
-        "count": 16
+        "count": 17
       },
       {
         "emoji": "⚡",
-        "count": 9
+        "count": 10
       },
       {
         "emoji": "🔥",
@@ -38,15 +38,15 @@
         "count": 2
       },
       {
+        "emoji": "😎",
+        "count": 2
+      },
+      {
         "emoji": "🤯",
         "count": 1
       },
       {
         "emoji": "🌭",
-        "count": 1
-      },
-      {
-        "emoji": "😎",
         "count": 1
       }
     ],
@@ -896,7 +896,7 @@
         "video_available": true
       }
     ],
-    "views": 2090,
+    "views": 2120,
     "forwards": null,
     "reactions": [
       {
